@@ -21,8 +21,32 @@ const getAllComplaints = async () => {
         throw error;
     }
 };
+const ai_parser = async (complaint) => {
+    const response = await fetch('http://localhost:8000/analyze', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(complaint)
+    });
+    return response.json();
+
+};
+const add_officer=async(ai_response,complaint_id)=>{
+    const query = 'INSERT INTO officers (name, email, complaint_id) VALUES ($1, $2, $3) RETURNING *';
+    const values = [ai_response.officer_name, ai_response.officer_email, complaint_id];
+    try {
+        const result = await db.query(query, values);
+        return result.rows[0];
+    } catch (error) {
+        console.error('Error adding officer:', error);
+        throw error;
+    }
+};
 
 module.exports = {
     createComplaint,
-    getAllComplaints
+    getAllComplaints,
+    ai_parser,
+    add_officer
 };

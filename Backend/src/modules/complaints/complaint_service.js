@@ -8,8 +8,17 @@ const createComplaint = async (data) => {
 const getAllComplaints = async (user_id) => {
     return await complaintRepository.getAllComplaints(user_id);
 };
+const ai_parser = async (complaint) => {
+    return await complaintRepository.ai_parser(complaint);
+};
+const add_officer=async(ai_response,complaint_id)=>{
+    return await complaintRepository.add_officer(ai_response,complaint_id);
+}
 
 module.exports = {
     createComplaint,
-    getAllComplaints
+    getAllComplaints,
+    ai_parser,
+    add_officer
 };
+

@@ -6,7 +6,7 @@ router = APIRouter()
 @router.post("/analyze")
 def analyze(data: dict):
 
-    complaint = data["complaint"]
+    complaint = data["title"] + " " + data["description"]
 
     result = analyze_complaint(complaint)
 
