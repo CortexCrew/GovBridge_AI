@@ -3,7 +3,7 @@ const create_complaint=async(req,res)=>{
     try {
         const complaint = await complaintService.createComplaint(req.body);
         const ai_response = await complaintService.ai_parser(complaint);
-        await complaintService.add_officer(ai_response, complaint.id);
+        await complaintService.add_officer(ai_response, complaint.user_id);
         res.status(201).json(complaint);
     } catch (error) {
         res.status(500).json({ error: error.message });

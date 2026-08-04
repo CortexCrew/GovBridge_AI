@@ -32,9 +32,10 @@ const ai_parser = async (complaint) => {
     return response.json();
 
 };
-const add_officer=async(ai_response,complaint_id)=>{
-    const query = 'INSERT INTO officers (name, email, complaint_id) VALUES ($1, $2, $3) RETURNING *';
-    const values = [ai_response.officer_name, ai_response.officer_email, complaint_id];
+const add_officer=async(ai_response,user_id)=>{
+    const aiResult = typeof ai_response === 'string' ? JSON.parse(ai_response.replace(/```json|```/g, '').trim()) : ai_response;
+    const query = 'INSERT INTO officer_complaint (department_id, department_name, user_id, category, priority, summary) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *';
+    const values = [aiResult.department_id, aiResult.department_name, user_id, aiResult.category, aiResult.priority, aiResult.summary];
     try {
         const result = await db.query(query, values);
         return result.rows[0];

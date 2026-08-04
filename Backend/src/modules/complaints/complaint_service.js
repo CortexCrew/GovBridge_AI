@@ -11,8 +11,8 @@ const getAllComplaints = async (user_id) => {
 const ai_parser = async (complaint) => {
     return await complaintRepository.ai_parser(complaint);
 };
-const add_officer=async(ai_response,complaint_id)=>{
-    return await complaintRepository.add_officer(ai_response,complaint_id);
+const add_officer=async(ai_response,user_id)=>{
+    return await complaintRepository.add_officer(ai_response,user_id);
 }
 
 module.exports = {
