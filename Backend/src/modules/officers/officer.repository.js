@@ -2,24 +2,25 @@ const db = require('../../config/db');
 
 class OfficerRepository {
   /**
-   * Find an officer record by ID.
-   * @param {number|string} id 
+   * Find an officer record by officer_id.
+   * @param {number|string} officerId 
    * @returns {Promise<Object|null>} Officer record or null
    */
-  async findById(id) {
+  async findById(officerId) {
     const query = `
       SELECT 
-        id, 
+        officer_id, 
         name, 
         email, 
         department_id, 
-        designation, 
+        role, 
         is_active, 
-        created_at
+        created_at,
+        updated_at
       FROM officers
-      WHERE id = $1;
+      WHERE officer_id = $1;
     `;
-    const { rows } = await db.query(query, [id]);
+    const { rows } = await db.query(query, [officerId]);
     return rows[0] || null;
   }
 
@@ -31,14 +32,15 @@ class OfficerRepository {
   async findByEmail(email) {
     const query = `
       SELECT 
-        id, 
+        officer_id, 
         name, 
         email, 
         password_hash, 
         department_id, 
-        designation, 
+        role, 
         is_active, 
-        created_at
+        created_at,
+        updated_at
       FROM officers
       WHERE email = $1;
     `;
@@ -48,20 +50,21 @@ class OfficerRepository {
   }
 
   /**
-   * Fetch department details by department ID.
+   * Fetch department details by department_id.
    * @param {number|string} departmentId 
    * @returns {Promise<Object|null>} Department details or null
    */
   async getDepartmentById(departmentId) {
     const query = `
       SELECT 
-        id, 
-        name, 
-        code, 
+        department_id, 
+        department_name, 
         description, 
-        created_at
+        is_active, 
+        created_at,
+        updated_at
       FROM departments
-      WHERE id = $1;
+      WHERE department_id = $1;
     `;
     const { rows } = await db.query(query, [departmentId]);
     return rows[0] || null;
