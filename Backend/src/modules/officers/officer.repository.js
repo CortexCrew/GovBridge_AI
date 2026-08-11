@@ -46,6 +46,26 @@ class OfficerRepository {
     const { rows } = await db.query(query, [email]);
     return rows[0] || null;
   }
+
+  /**
+   * Fetch department details by department ID.
+   * @param {number|string} departmentId 
+   * @returns {Promise<Object|null>} Department details or null
+   */
+  async getDepartmentById(departmentId) {
+    const query = `
+      SELECT 
+        id, 
+        name, 
+        code, 
+        description, 
+        created_at
+      FROM departments
+      WHERE id = $1;
+    `;
+    const { rows } = await db.query(query, [departmentId]);
+    return rows[0] || null;
+  }
 }
 
 module.exports = new OfficerRepository();
