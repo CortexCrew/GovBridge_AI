@@ -1,25 +1,39 @@
-complaintsservice=require('./complaints_service')
-const create_complaint=async(req,res)=>{
-    try {
-        const complaint = await complaintService.createComplaint(req.body);
-        const ai_response = await complaintService.ai_parser(complaint);
-        await complaintService.add_officer(ai_response, complaint.user_id);
-        res.status(201).json(complaint);
-    } catch (error) {
-        res.status(500).json({ error: error.message });
+const complaintService = require('./complaint_service');
+
+const create_complaint = async (req, res) => {
+  try {
+    const userId = req.user && req.user.user_id;
+    if (!userId) {
+      return res.status(401).json({ success: false, message: 'Unauthorized. User not authenticated.' });
     }
 
-}
-const get_all_complaints=async(req,res)=>{
-    try {
-        const citizen_id=req.userid
-        const complaints = await complaintService.getAllComplaints(citizen_id);
-        res.status(200).json(complaints);
-    } catch (error) {
-        res.status(500).json({ error: error.message });
+    const { title, description } = req.body;
+    if (!title || !description) {
+      return res.status(400).json({ success: false, message: 'Title and description are required.' });
     }
-}
-module.exports={
-    create_complaint,
-    get_all_complaints
-}
+
+    const complaint = await complaintService.createComplaint({ title, description, user_id: userId });
+    return res.status(201).json({ success: true, data: complaint });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+const get_all_complaints = async (req, res) => {
+  try {
+    const userId = req.user && req.user.user_id;
+    if (!userId) {
+      return res.status(401).json({ success: false, message: 'Unauthorized. User not authenticated.' });
+    }
+
+    const complaints = await complaintService.getAllComplaints(userId, req.user.role);
+    return res.status(200).json({ success: true, data: complaints });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+module.exports = {
+  create_complaint,
+  get_all_complaints,
+};

@@ -1,74 +1,138 @@
+const fs = require('fs');
 const repository = require('./certificate.repository');
+const { ALLOWED_CERTIFICATE_TYPES } = require('./certificate.validation');
 
 class CertificateService {
+  /**
+   * Initialize DB tables for the certificate module.
+   */
   async init() {
     await repository.createTables();
   }
 
+  /**
+   * Submit a new certificate application with supporting documents.
+   * Cleans up uploaded files from disk if DB insertion fails.
+   *
+   * @param {number} userId - From JWT (req.user.user_id)
+   * @param {string} certificateType
+   * @param {Array} files - Multer file array
+   */
   async applyForCertificate(userId, certificateType, files) {
-    if (!files || files.length === 0) {
-      throw { statusCode: 400, message: 'At least one document must be uploaded' };
+    if (!ALLOWED_CERTIFICATE_TYPES.includes(certificateType)) {
+      const err = new Error(`Invalid certificate_type. Allowed: ${ALLOWED_CERTIFICATE_TYPES.join(', ')}`);
+      err.statusCode = 400;
+      throw err;
     }
 
-    // Create the application record
-    const application = await repository.createApplication(userId, certificateType);
+    if (!files || files.length === 0) {
+      const err = new Error('At least one supporting document must be uploaded');
+      err.statusCode = 400;
+      throw err;
+    }
 
-    // Save all uploaded documents
+    let application;
+    try {
+      application = await repository.createApplication(userId, certificateType);
+    } catch (dbErr) {
+      this._cleanUpFiles(files);
+      throw dbErr;
+    }
+
     const savedDocuments = [];
-    for (const file of files) {
-      // In a real scenario, you might get documentType from the form data
-      const docType = file.fieldname || 'Supporting Document'; 
-      const doc = await repository.saveDocument(application.id, userId, file.path, docType);
-      savedDocuments.push(doc);
+    try {
+      for (const file of files) {
+        const docType = file.fieldname || 'Supporting Document';
+        const doc = await repository.saveDocument(
+          application.application_id,
+          userId,
+          file.path,
+          docType
+        );
+        savedDocuments.push(doc);
+      }
+    } catch (docErr) {
+      this._cleanUpFiles(files);
+      throw docErr;
     }
 
     return { ...application, documents: savedDocuments };
   }
 
+  /**
+   * Get all applications for a citizen.
+   * @param {number} userId
+   */
   async trackApplication(userId) {
-    const applications = await repository.getApplicationsByUser(userId);
-    return applications;
+    return await repository.getApplicationsByUser(userId);
   }
-  
+
+  /**
+   * Get full details of one application (including its documents).
+   * Enforces that only the owning citizen can view it.
+   *
+   * @param {number} applicationId
+   * @param {number} userId - From JWT
+   */
   async getApplicationDetails(applicationId, userId) {
     const application = await repository.getApplicationById(applicationId);
-    
+
     if (!application) {
-      throw { statusCode: 404, message: 'Application not found' };
+      const err = new Error('Application not found');
+      err.statusCode = 404;
+      throw err;
     }
 
-    // Assuming we only allow the user who created it (or an officer) to see it
     if (application.user_id !== userId) {
-      throw { statusCode: 403, message: 'Access denied' };
+      const err = new Error('Access denied. You do not own this application.');
+      err.statusCode = 403;
+      throw err;
     }
 
     const documents = await repository.getDocumentsByApplicationId(applicationId);
     return { ...application, documents };
   }
 
-  async reviewApplication(applicationId, status, remarks, certificateFilePath = null) {
-    const application = await repository.updateApplicationStatus(applicationId, status, remarks);
-    
+  /**
+   * Officer reviews an application — sets status, remarks, and records officer_id.
+   *
+   * @param {number} applicationId
+   * @param {string} status - 'Approved' | 'Rejected'
+   * @param {string|null} remarks
+   * @param {number|null} officerId
+   */
+  async reviewApplication(applicationId, status, remarks, officerId = null) {
+    const application = await repository.updateApplicationStatus(
+      applicationId,
+      status,
+      remarks,
+      officerId
+    );
+
     if (!application) {
-      throw { statusCode: 404, message: 'Application not found' };
+      const err = new Error('Application not found');
+      err.statusCode = 404;
+      throw err;
     }
 
-    let digitalLockerRecord = null;
-    // If approved and a certificate was generated
-    if (status === 'Approved' && certificateFilePath) {
-      digitalLockerRecord = await repository.saveToDigitalLocker(
-        application.user_id,
-        application.id,
-        certificateFilePath
-      );
-    }
-
-    return { application, digitalLockerRecord };
+    return { application };
   }
 
-  async getDigitalLocker(userId) {
-    const certificates = await repository.getDigitalLockerByUser(userId);
-    return certificates;
+  /**
+   * Internal helper — removes uploaded files from disk.
+   * @param {Array} files - Multer file objects
+   */
+  _cleanUpFiles(files) {
+    if (!files) return;
+    for (const file of files) {
+      try {
+        if (file.path && fs.existsSync(file.path)) {
+          fs.unlinkSync(file.path);
+        }
+      } catch (e) {
+        console.warn(`File cleanup failed for ${file.path}:`, e.message);
+      }
+    }
   }
 }
 

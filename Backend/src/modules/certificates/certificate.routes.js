@@ -4,35 +4,40 @@ const controller = require('./certificate.controller');
 const validation = require('./certificate.validation');
 const upload = require('../../middleware/upload.middleware');
 const auth = require('../../middleware/auth.middleware');
+const { requireRole } = require('../../middleware/role.middleware');
 
-// Citizen Routes
-router.post('/apply', 
-  auth, 
-  upload.array('documents', 5), // Allow up to 5 documents
-  validation.validateApplication, 
+// ─── Citizen Routes ───────────────────────────────────────────────────────────
+
+// POST /api/certificates/apply
+router.post(
+  '/apply',
+  auth,
+  upload.array('documents', 5),
+  validation.validateApplication,
   controller.apply
 );
 
-router.get('/my-applications', 
-  auth, 
+// GET /api/certificates/my-applications
+router.get(
+  '/my-applications',
+  auth,
   controller.getMyApplications
 );
 
-router.get('/my-applications/:id', 
-  auth, 
+// GET /api/certificates/my-applications/:id
+router.get(
+  '/my-applications/:id',
+  auth,
   controller.getApplicationDetails
 );
 
-router.get('/digital-locker', 
-  auth, 
-  controller.getMyDigitalLocker
-);
+// ─── Officer Routes ───────────────────────────────────────────────────────────
 
-// Officer Routes
-// (Ideally this would be under an officer module or restricted by an officer auth middleware)
-router.patch('/:id/review', 
-  auth, 
-  upload.single('certificate'), // Optional final certificate document
+// PATCH /api/certificates/:id/review  (OFFICER only)
+router.patch(
+  '/:id/review',
+  auth,
+  requireRole('OFFICER'),
   validation.validateReview,
   controller.reviewApplication
 );

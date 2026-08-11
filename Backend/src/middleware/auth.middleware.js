@@ -1,16 +1,40 @@
-// Mock Auth Middleware until Member 1 completes Auth Module
+const jwt = require('jsonwebtoken');
+const env = require('../config/env');
+
+/**
+ * Authentication Middleware
+ * Verifies JWT token from Authorization header (Bearer <token>)
+ * Attaches decoded user payload ({ user_id, email, role }) to req.user
+ */
 function authMiddleware(req, res, next) {
-  // In a real app, verify JWT here
-  const token = req.headers.authorization;
-  
-  // Dummy user for testing
-  req.user = {
-    id: 1,
-    role: 'citizen',
-    email: 'test@example.com'
-  };
-  
-  next();
+  const authHeader = req.headers.authorization;
+
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({
+      success: false,
+      message: 'Access denied. Authorization token missing or malformed.'
+    });
+  }
+
+  const token = authHeader.split(' ')[1];
+
+  try {
+    const decoded = jwt.verify(token, env.JWT_SECRET);
+    
+    // Ensure req.user strictly uses user_id
+    req.user = {
+      user_id: decoded.user_id || decoded.id,
+      email: decoded.email,
+      role: decoded.role || 'CITIZEN'
+    };
+
+    next();
+  } catch (err) {
+    return res.status(401).json({
+      success: false,
+      message: 'Invalid or expired token. Please log in again.'
+    });
+  }
 }
 
 module.exports = authMiddleware;

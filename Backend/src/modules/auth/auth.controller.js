@@ -2,43 +2,56 @@ const authService = require('./auth.service');
 
 class AuthController {
   /**
-   * Controller to request/send an OTP
+   * Controller for citizen registration
    */
-  async sendOtp(req, res, next) {
+  async register(req, res, next) {
     try {
-      const { identifier, email, phone } = req.body;
-      const targetIdentifier = identifier || email || phone;
-
-      const result = await authService.sendOTP(targetIdentifier);
-      return res.status(200).json(result);
+      const result = await authService.register(req.body);
+      return res.status(201).json(result);
     } catch (err) {
       return res.status(400).json({
         success: false,
-        message: err.message || 'Failed to send OTP'
+        message: err.message || 'Registration failed'
       });
     }
   }
 
   /**
-   * Controller to verify OTP and log in user
+   * Controller for citizen login
    */
-  async verifyOtp(req, res, next) {
+  async login(req, res, next) {
     try {
-      const { identifier, email, phone, otp, code } = req.body;
-      const targetIdentifier = identifier || email || phone;
-      const targetOtp = otp || code;
+      const { email, password } = req.body;
+      const result = await authService.login(email, password);
+      return res.status(200).json(result);
+    } catch (err) {
+      return res.status(401).json({
+        success: false,
+        message: err.message || 'Login failed'
+      });
+    }
+  }
 
-      const result = await authService.verifyOTP(targetIdentifier, targetOtp);
-      
-      if (!result.success) {
-        return res.status(400).json(result);
+  /**
+   * Controller to get currently authenticated user profile
+   */
+  async getProfile(req, res, next) {
+    try {
+      // Extract user_id from authenticated req.user (populated by authMiddleware)
+      const userId = req.user && req.user.user_id;
+      if (!userId) {
+        return res.status(401).json({
+          success: false,
+          message: 'Unauthorized. User ID missing from session.'
+        });
       }
 
+      const result = await authService.getProfile(userId);
       return res.status(200).json(result);
     } catch (err) {
       return res.status(400).json({
         success: false,
-        message: err.message || 'Failed to verify OTP'
+        message: err.message || 'Failed to retrieve user profile'
       });
     }
   }

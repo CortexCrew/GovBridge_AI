@@ -8,4 +8,5 @@ module.exports = {
   DB_PORT: process.env.DB_PORT || 5432,
   DB_NAME: process.env.DB_NAME || 'govbridge_db',
   JWT_SECRET: process.env.JWT_SECRET || 'supersecretjwtkey',
+  AI_SERVICE_URL: process.env.AI_SERVICE_URL || 'http://localhost:8000',
 };

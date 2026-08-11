@@ -1,15 +1,21 @@
 const express = require('express');
 const router = express.Router();
 const authController = require('./auth.controller');
+const authMiddleware = require('../../middleware/auth.middleware');
 
-// @route   POST /api/auth/send-otp
-// @desc    Generate and send OTP to Email or Mobile Phone Number
+// @route   POST /api/auth/register
+// @desc    Register a new citizen account
 // @access  Public
-router.post('/send-otp', (req, res, next) => authController.sendOtp(req, res, next));
+router.post('/register', (req, res, next) => authController.register(req, res, next));
 
-// @route   POST /api/auth/verify-otp
-// @desc    Verify OTP and log in (issues JWT token)
+// @route   POST /api/auth/login
+// @desc    Citizen login (issues JWT token)
 // @access  Public
-router.post('/verify-otp', (req, res, next) => authController.verifyOtp(req, res, next));
+router.post('/login', (req, res, next) => authController.login(req, res, next));
+
+// @route   GET /api/auth/profile
+// @desc    Get current authenticated citizen profile
+// @access  Protected (Requires valid JWT)
+router.get('/profile', authMiddleware, (req, res, next) => authController.getProfile(req, res, next));
 
 module.exports = router;

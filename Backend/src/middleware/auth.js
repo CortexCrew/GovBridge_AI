@@ -1,4 +1,3 @@
-// Authentication Middleware
-module.exports = (req, res, next) => {
-  next();
-};
+const authMiddleware = require('./auth.middleware');
+
+module.exports = authMiddleware;

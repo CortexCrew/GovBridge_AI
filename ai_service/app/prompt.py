@@ -17,13 +17,14 @@ Analyze the complaint and assign it to exactly one department from this list:
 12: Education Department
 13: Information Technology and Digital Services
 
-Return ONLY JSON.
+Return ONLY JSON with these fields:
 
 {
-    "category":"",
-    "department_id":0,
-    "department_name":"",
-    "priority":"",
-    "summary":""
+    "category": "",
+    "department": "",
+    "priority": "",
+    "summary": ""
 }
+
+Use exactly one of the department names from the list above.
 """

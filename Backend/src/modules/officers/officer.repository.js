@@ -1,6 +1,52 @@
 const db = require('../../config/db');
 
 class OfficerRepository {
+  async init() {
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS departments (
+        department_id SERIAL PRIMARY KEY,
+        department_name VARCHAR(255) UNIQUE NOT NULL,
+        description TEXT,
+        is_active BOOLEAN DEFAULT TRUE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS officers (
+        officer_id SERIAL PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        email VARCHAR(255) UNIQUE NOT NULL,
+        password_hash VARCHAR(255) NOT NULL,
+        department_id INTEGER REFERENCES departments(department_id) ON DELETE SET NULL,
+        role VARCHAR(50) NOT NULL DEFAULT 'OFFICER',
+        is_active BOOLEAN DEFAULT TRUE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
+    await db.query(`
+      INSERT INTO departments (department_name)
+      VALUES
+        ('Revenue Department'),
+        ('Municipal Administration'),
+        ('Rural Development and Panchayat Raj'),
+        ('Water Supply Department'),
+        ('Electricity Department'),
+        ('Health and Family Welfare'),
+        ('Transport Department'),
+        ('Police Department'),
+        ('Public Works Department'),
+        ('Agriculture Department'),
+        ('Social Welfare Department'),
+        ('Education Department'),
+        ('Information Technology and Digital Services')
+      ON CONFLICT (department_name) DO NOTHING;
+    `);
+  }
+
   /**
    * Find an officer record by officer_id.
    * @param {number|string} officerId 

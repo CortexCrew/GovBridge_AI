@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from llm import analyze_complaint
+from .llm import analyze_complaint
 
 router = APIRouter()
 
