@@ -11,76 +11,70 @@ export default function App() {
   const [activePortal, setActivePortal] = useState('citizen'); // 'citizen' | 'officer'
   const [user, setUser] = useState(null);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
+  const [authTab, setAuthTab] = useState('citizen_login');
   const [selectedService, setSelectedService] = useState(null);
   const [isComplaintModalOpen, setIsComplaintModalOpen] = useState(false);
   const [toast, setToast] = useState(null);
 
-  // Applications & Complaints State
-  const [applications, setApplications] = useState([
-    {
-      id: 101,
-      certificate_type: 'Income Certificate',
-      status: 'APPROVED',
-      created_at: new Date(Date.now() - 86400000 * 2).toISOString(),
-      applicant_name: 'Sukanthan Suresh',
-      department_id: 1
-    },
-    {
-      id: 102,
-      certificate_type: 'Birth Certificate',
-      status: 'PENDING',
-      created_at: new Date().toISOString(),
-      applicant_name: 'Sukanthan Suresh',
-      department_id: 2
-    }
-  ]);
-
-  const [complaints, setComplaints] = useState([
-    {
-      id: 501,
-      title: 'Road Potholes on Civil Lines Main Road',
-      category: 'Public Works (Roads)',
-      description: 'Dangerous potholes causing traffic congestion and accidents.',
-      status: 'IN_PROGRESS',
-      priority: 'HIGH',
-      department_id: 1
-    }
-  ]);
+  // Applications & Complaints State (Starts empty, populated dynamically)
+  const [applications, setApplications] = useState([]);
+  const [complaints, setComplaints] = useState([]);
 
   const showToast = (message, type = 'success') => {
     setToast({ message, type });
     setTimeout(() => setToast(null), 4000);
   };
 
+  // Open Auth Modal with specific initial tab
+  const handleOpenAuth = (tab = 'citizen_login') => {
+    setAuthTab(tab);
+    setIsAuthOpen(true);
+  };
+
   // Fetch live applications & complaints from backend API
-  const fetchApplications = async () => {
-    const endpoint = user?.role === 'OFFICER' 
+  const fetchData = async () => {
+    if (!user) return;
+
+    // Applications
+    const appEndpoint = user.role === 'OFFICER' 
       ? '/certificates/officer/applications' 
       : '/certificates/my-applications';
-    const res = await apiRequest(endpoint);
-    if (res && res.success && Array.isArray(res.data)) {
-      setApplications(res.data);
+    const appRes = await apiRequest(appEndpoint);
+    if (appRes && appRes.success && Array.isArray(appRes.data)) {
+      setApplications(appRes.data);
+    }
+
+    // Complaints
+    const compEndpoint = user.role === 'OFFICER'
+      ? '/officers/complaints'
+      : '/complaints';
+    const compRes = await apiRequest(compEndpoint);
+    if (compRes && (compRes.success || Array.isArray(compRes))) {
+      const list = Array.isArray(compRes) ? compRes : compRes.data || [];
+      setComplaints(list);
     }
   };
 
   useEffect(() => {
-    if (user) {
-      fetchApplications();
-    }
+    fetchData();
   }, [user]);
 
   // Auth Callbacks
   const handleAuthSuccess = (userData, token) => {
     setUser(userData);
-    showToast(`Welcome back, ${userData.name || 'User'}! Authenticated successfully.`);
+    showToast(`Welcome, ${userData.name || 'User'}! Authenticated successfully.`);
     if (userData.role === 'OFFICER') {
       setActivePortal('officer');
+    } else {
+      setActivePortal('citizen');
     }
   };
 
   const handleLogout = () => {
     localStorage.removeItem('token');
     setUser(null);
+    setApplications([]);
+    setComplaints([]);
     setActivePortal('citizen');
     showToast('Logged out successfully.');
   };
@@ -102,11 +96,11 @@ export default function App() {
     });
 
     const newApp = {
-      id: res && res.application_id ? res.application_id : Math.floor(100 + Math.random() * 900),
+      id: res && (res.application_id || res.data?.id) ? (res.application_id || res.data?.id) : Math.floor(100 + Math.random() * 900),
       certificate_type: appData.certificate_type,
       status: 'PENDING',
       created_at: new Date().toISOString(),
-      applicant_name: user?.name || 'Sukanthan Suresh',
+      applicant_name: user?.name || 'Citizen',
       department_id: appData.department_id
     };
 
@@ -116,20 +110,20 @@ export default function App() {
 
   // Citizen Complaint Handler
   const handleComplaintSubmit = async (complaintData) => {
-    const res = await apiRequest('/complaints/raise', {
+    const res = await apiRequest('/complaints', {
       method: 'POST',
       body: JSON.stringify(complaintData)
     });
 
     const newComplaint = {
-      id: res && res.complaint_id ? res.complaint_id : Math.floor(500 + Math.random() * 900),
+      id: res && (res.complaint_id || res.id) ? (res.complaint_id || res.id) : Math.floor(500 + Math.random() * 900),
       ...complaintData,
       status: 'PENDING',
       created_at: new Date().toISOString()
     };
 
     setComplaints([newComplaint, ...complaints]);
-    showToast('Civic complaint logged with automatic AI priority assignment.');
+    showToast('Civic complaint logged successfully!');
   };
 
   // Officer Review Handler
@@ -185,7 +179,7 @@ export default function App() {
         activePortal={activePortal}
         setActivePortal={setActivePortal}
         user={user}
-        onOpenAuth={() => setIsAuthOpen(true)}
+        onOpenAuth={handleOpenAuth}
         onLogout={handleLogout}
       />
 
@@ -198,7 +192,7 @@ export default function App() {
             complaints={complaints}
             onApplyCertificate={(service) => setSelectedService(service)}
             onRaiseComplaint={() => setIsComplaintModalOpen(true)}
-            onOpenAuth={() => setIsAuthOpen(true)}
+            onOpenAuth={() => handleOpenAuth('citizen_login')}
           />
         ) : (
           <OfficerPortal 
@@ -207,7 +201,7 @@ export default function App() {
             complaints={complaints}
             onReviewCertificate={handleReviewCertificate}
             onResolveComplaint={handleResolveComplaint}
-            onOpenAuth={() => setIsAuthOpen(true)}
+            onOpenAuth={() => handleOpenAuth('officer_login')}
           />
         )}
       </main>
@@ -220,6 +214,7 @@ export default function App() {
       {/* Modals */}
       <AuthModal 
         isOpen={isAuthOpen}
+        initialTab={authTab}
         onClose={() => setIsAuthOpen(false)}
         onAuthSuccess={handleAuthSuccess}
       />

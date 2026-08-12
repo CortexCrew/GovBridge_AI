@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { User, ShieldCheck, Mail, Lock, Phone, MapPin, X, ArrowRight } from 'lucide-react';
 import { apiRequest } from '../services/api';
 
-export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
-  const [tab, setTab] = useState('citizen_login'); // 'citizen_login' | 'citizen_register' | 'officer_login'
+export default function AuthModal({ isOpen, initialTab = 'citizen_login', onClose, onAuthSuccess }) {
+  const [tab, setTab] = useState(initialTab); // 'citizen_login' | 'citizen_register' | 'officer_login'
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -13,6 +13,12 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (initialTab) {
+      setTab(initialTab);
+    }
+  }, [initialTab, isOpen]);
 
   if (!isOpen) return null;
 
@@ -84,18 +90,21 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
         {/* Tab Selector */}
         <div className="grid grid-cols-3 gap-1 bg-slate-900/90 p-1 rounded-xl border border-slate-800 text-xs font-medium">
           <button
+            type="button"
             onClick={() => { setTab('citizen_login'); setError(''); }}
             className={`py-2 rounded-lg transition-all ${tab === 'citizen_login' ? 'bg-emerald-600 text-white font-semibold' : 'text-slate-400 hover:text-slate-200'}`}
           >
             Citizen Login
           </button>
           <button
+            type="button"
             onClick={() => { setTab('citizen_register'); setError(''); }}
             className={`py-2 rounded-lg transition-all ${tab === 'citizen_register' ? 'bg-emerald-600 text-white font-semibold' : 'text-slate-400 hover:text-slate-200'}`}
           >
             Register
           </button>
           <button
+            type="button"
             onClick={() => { setTab('officer_login'); setError(''); }}
             className={`py-2 rounded-lg transition-all ${tab === 'officer_login' ? 'bg-cyan-600 text-white font-semibold' : 'text-slate-400 hover:text-slate-200'}`}
           >
