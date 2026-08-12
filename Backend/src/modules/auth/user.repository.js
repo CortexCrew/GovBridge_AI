@@ -133,6 +133,92 @@ class UserRepository {
   }
 
   /**
+   * Get all users and their citizen details
+   */
+  async getAllUsers() {
+    const queryText = `
+      SELECT 
+        u.user_id,
+        u.name,
+        u.email,
+        u.role,
+        u.is_active,
+        u.created_at AS user_created_at,
+        c.citizen_id,
+        c.phone,
+        c.address,
+        c.city,
+        c.state,
+        c.pincode
+      FROM users u
+      LEFT JOIN citizens c ON u.user_id = c.user_id
+      ORDER BY u.user_id;
+    `;
+    const result = await db.query(queryText);
+    return result.rows;
+  }
+
+  /**
+   * Update fields on the users table
+   */
+  async updateUser(userId, updates) {
+    const allowedFields = ['name', 'email', 'role', 'is_active'];
+    const fields = Object.keys(updates).filter((field) => allowedFields.includes(field));
+    if (fields.length === 0) {
+      return false;
+    }
+
+    const setClauses = fields.map((field, index) => `${field} = $${index + 1}`);
+    const values = fields.map((field) => updates[field]);
+    values.push(userId);
+
+    const queryText = `
+      UPDATE users
+      SET ${setClauses.join(', ')}, updated_at = CURRENT_TIMESTAMP
+      WHERE user_id = $${values.length};
+    `;
+
+    const result = await db.query(queryText, values);
+    return result.rowCount > 0;
+  }
+
+  /**
+   * Update fields on the citizens table for a given user
+   */
+  async updateCitizenProfile(userId, updates) {
+    const allowedFields = ['phone', 'address', 'city', 'state', 'pincode'];
+    const fields = Object.keys(updates).filter((field) => allowedFields.includes(field));
+    if (fields.length === 0) {
+      return false;
+    }
+
+    const setClauses = fields.map((field, index) => `${field} = $${index + 1}`);
+    const values = fields.map((field) => updates[field]);
+    values.push(userId);
+
+    const queryText = `
+      UPDATE citizens
+      SET ${setClauses.join(', ')}, updated_at = CURRENT_TIMESTAMP
+      WHERE user_id = $${values.length};
+    `;
+
+    const result = await db.query(queryText, values);
+    return result.rowCount > 0;
+  }
+
+  /**
+   * Delete a user account by ID
+   */
+  async deleteUser(userId) {
+    const queryText = `
+      DELETE FROM users
+      WHERE user_id = $1;
+    `;
+    const result = await db.query(queryText, [userId]);
+    return result.rowCount > 0;
+  }
+
+  /**
    * Update password hash for a user
    * @param {number} userId 
    * @param {string} newPasswordHash 

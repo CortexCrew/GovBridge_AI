@@ -125,6 +125,164 @@ class AuthService {
       profile
     };
   }
+
+  /**
+   * Get all users (admin only)
+   */
+  async getAllUsers() {
+    const users = await userRepository.getAllUsers();
+    return {
+      success: true,
+      users
+    };
+  }
+
+  /**
+   * Get a single user by ID
+   */
+  async getUserById(targetUserId, requesterId, requesterRole) {
+    if (!targetUserId) {
+      throw new Error('User ID is required');
+    }
+
+    if (requesterId !== targetUserId && requesterRole !== 'ADMIN') {
+      throw new Error('Access denied');
+    }
+
+    const user = await userRepository.findById(targetUserId);
+    if (!user) {
+      throw new Error('User not found');
+    }
+
+    return {
+      success: true,
+      user
+    };
+  }
+
+  /**
+   * Update a user profile and citizen details
+   */
+  async updateProfile(targetUserId, updateData, requesterId, requesterRole) {
+    if (!targetUserId) {
+      throw new Error('User ID is required');
+    }
+
+    if (requesterId !== targetUserId && requesterRole !== 'ADMIN') {
+      throw new Error('Access denied');
+    }
+
+    const existing = await userRepository.findById(targetUserId);
+    if (!existing) {
+      throw new Error('User not found');
+    }
+
+    const userUpdates = {};
+    const citizenUpdates = {};
+
+    if (updateData.name != null && updateData.name.toString().trim() !== '') {
+      userUpdates.name = updateData.name.toString().trim();
+    }
+
+    if (updateData.email != null && updateData.email.toString().trim() !== '') {
+      const normalizedEmail = updateData.email.toString().trim().toLowerCase();
+      if (normalizedEmail !== existing.email.toLowerCase()) {
+        const emailTaken = await userRepository.findByEmail(normalizedEmail);
+        if (emailTaken) {
+          throw new Error('A user with this email address already exists');
+        }
+        userUpdates.email = normalizedEmail;
+      }
+    }
+
+    if (requesterRole === 'ADMIN') {
+      if (updateData.role != null) {
+        userUpdates.role = updateData.role.toString().trim();
+      }
+      if (updateData.is_active != null) {
+        const value = updateData.is_active;
+        userUpdates.is_active = ['true', '1', 'yes'].includes(String(value).trim().toLowerCase());
+      }
+    }
+
+    if (updateData.phone != null) {
+      citizenUpdates.phone = updateData.phone.toString().trim();
+    }
+    if (updateData.address != null) {
+      citizenUpdates.address = updateData.address.toString().trim();
+    }
+    if (updateData.city != null) {
+      citizenUpdates.city = updateData.city.toString().trim();
+    }
+    if (updateData.state != null) {
+      citizenUpdates.state = updateData.state.toString().trim();
+    }
+    if (updateData.pincode != null) {
+      citizenUpdates.pincode = updateData.pincode.toString().trim();
+    }
+
+    if (updateData.newPassword != null) {
+      if (updateData.newPassword.toString().length < 6) {
+        throw new Error('New password must be at least 6 characters long');
+      }
+
+      if (requesterRole !== 'ADMIN') {
+        if (!updateData.currentPassword || updateData.currentPassword.toString().trim() === '') {
+          throw new Error('Current password is required to change the password');
+        }
+
+        const authUser = await userRepository.findByEmail(existing.email);
+        if (!authUser) {
+          throw new Error('Unable to validate current password');
+        }
+
+        const validPassword = await bcrypt.compare(updateData.currentPassword.toString(), authUser.password_hash);
+        if (!validPassword) {
+          throw new Error('Current password is incorrect');
+        }
+      }
+
+      const newPasswordHash = await bcrypt.hash(updateData.newPassword.toString(), 10);
+      await userRepository.updatePassword(targetUserId, newPasswordHash);
+    }
+
+    if (Object.keys(userUpdates).length > 0) {
+      await userRepository.updateUser(targetUserId, userUpdates);
+    }
+
+    if (Object.keys(citizenUpdates).length > 0) {
+      await userRepository.updateCitizenProfile(targetUserId, citizenUpdates);
+    }
+
+    const updatedUser = await userRepository.findById(targetUserId);
+    return {
+      success: true,
+      user: updatedUser
+    };
+  }
+
+  /**
+   * Delete a user account
+   */
+  async deleteUser(targetUserId, requesterId, requesterRole) {
+    if (!targetUserId) {
+      throw new Error('User ID is required');
+    }
+
+    if (requesterId !== targetUserId && requesterRole !== 'ADMIN') {
+      throw new Error('Access denied');
+    }
+
+    const deleted = await userRepository.deleteUser(targetUserId);
+    if (!deleted) {
+      throw new Error('User not found');
+    }
+
+    return {
+      success: true,
+      message: 'User account deleted successfully'
+    };
+  }
 }
 
 module.exports = new AuthService();

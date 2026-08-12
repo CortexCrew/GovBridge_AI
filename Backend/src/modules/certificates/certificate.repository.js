@@ -9,7 +9,6 @@ class CertificateRepository {
       CREATE TABLE IF NOT EXISTS certificate_applications (
         application_id     SERIAL PRIMARY KEY,
         user_id            INTEGER NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
-        officer_id         INTEGER REFERENCES officers(officer_id) ON DELETE SET NULL,
         certificate_type   VARCHAR(100) NOT NULL CHECK (certificate_type IN (
           'Income Certificate',
           'Community Certificate',
@@ -47,7 +46,6 @@ class CertificateRepository {
       RETURNING
         application_id,
         user_id,
-        officer_id,
         certificate_type,
         status,
         application_date,
@@ -89,7 +87,6 @@ class CertificateRepository {
       SELECT
         application_id,
         user_id,
-        officer_id,
         certificate_type,
         status,
         application_date,
@@ -111,7 +108,6 @@ class CertificateRepository {
       SELECT
         application_id,
         user_id,
-        officer_id,
         certificate_type,
         status,
         application_date,
@@ -121,6 +117,26 @@ class CertificateRepository {
     `;
     const result = await db.query(query, [applicationId]);
     return result.rows[0] || null;
+  }
+
+  async getApplicationsForOfficer(officerId) {
+    const query = `
+      SELECT
+        ca.application_id,
+        ca.user_id,
+        ca.certificate_type,
+        ca.status,
+        ca.application_date,
+        ca.remarks
+      FROM certificate_applications ca
+      INNER JOIN officers o ON o.officer_id = $1
+      WHERE o.is_active = TRUE
+      AND ca.certificate_type = ANY(COALESCE(o.certificate_types, ARRAY[]::text[]))
+      ORDER BY ca.application_date DESC;
+    `;
+
+    const result = await db.query(query, [officerId]);
+    return result.rows;
   }
 
   /**
@@ -151,24 +167,22 @@ class CertificateRepository {
    * @param {string|null} remarks
    * @param {number|null} officerId
    */
-  async updateApplicationStatus(applicationId, status, remarks, officerId) {
+  async updateApplicationStatus(applicationId, status, remarks) {
     const query = `
       UPDATE certificate_applications
       SET
-        status     = $2,
-        remarks    = $3,
-        officer_id = $4
+        status  = $2,
+        remarks = $3
       WHERE application_id = $1
       RETURNING
         application_id,
         user_id,
-        officer_id,
         certificate_type,
         status,
         application_date,
         remarks;
     `;
-    const result = await db.query(query, [applicationId, status, remarks, officerId]);
+    const result = await db.query(query, [applicationId, status, remarks]);
     return result.rows[0] || null;
   }
 }

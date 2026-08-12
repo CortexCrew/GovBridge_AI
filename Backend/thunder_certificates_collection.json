@@ -1,0 +1,66 @@
+{
+  "_type": "collection",
+  "name": "Certificates Module",
+  "requests": [
+    {
+      "id": "cert-apply",
+      "name": "Apply for Certificate (multipart)",
+      "url": "{{baseUrl}}/api/certificates/apply",
+      "method": "POST",
+      "headers": [
+        { "key": "Authorization", "value": "Bearer {{authToken}}" }
+      ],
+      "body": {
+        "type": "formdata",
+        "form": [
+          { "key": "certificate_type", "value": "Income Certificate", "type": "text" },
+          { "key": "documents", "type": "file", "src": ["C:/path/to/document.pdf"] }
+        ]
+      }
+    },
+    {
+      "id": "cert-list",
+      "name": "Get My Applications",
+      "url": "{{baseUrl}}/api/certificates/my-applications",
+      "method": "GET",
+      "headers": [
+        { "key": "Authorization", "value": "Bearer {{authToken}}" }
+      ]
+    },
+    {
+      "id": "cert-details",
+      "name": "Get Application Details",
+      "url": "{{baseUrl}}/api/certificates/my-applications/{{applicationId}}",
+      "method": "GET",
+      "headers": [
+        { "key": "Authorization", "value": "Bearer {{authToken}}" }
+      ]
+    },
+    {
+      "id": "cert-review",
+      "name": "Review Application (OFFICER)",
+      "url": "{{baseUrl}}/api/certificates/{{applicationId}}/review",
+      "method": "PATCH",
+      "headers": [
+        { "key": "Content-Type", "value": "application/json" },
+        { "key": "Authorization", "value": "Bearer {{authTokenOfficer}}" }
+      ],
+      "body": {
+        "type": "json",
+        "raw": "{\n  \"status\": \"Approved\",\n  \"remarks\": \"Verified and approved\"\n}"
+      }
+    }
+  ],
+  "environments": [
+    {
+      "id": "env-cert-local",
+      "name": "Local",
+      "values": [
+        { "key": "baseUrl", "value": "http://localhost:5000" },
+        { "key": "authToken", "value": "" },
+        { "key": "authTokenOfficer", "value": "" },
+        { "key": "applicationId", "value": "" }
+      ]
+    }
+  ]
+}

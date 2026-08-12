@@ -33,6 +33,14 @@ router.get(
 
 // ─── Officer Routes ───────────────────────────────────────────────────────────
 
+// GET /api/certificates/officer/applications
+router.get(
+  '/officer/applications',
+  auth,
+  requireRole('OFFICER'),
+  controller.getOfficerApplications
+);
+
 // PATCH /api/certificates/:id/review  (OFFICER only)
 router.patch(
   '/:id/review',

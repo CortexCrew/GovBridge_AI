@@ -13,7 +13,14 @@ const ALLOWED_REVIEW_STATUSES = ['Approved', 'Rejected'];
  * Requires: certificate_type (one of 5 allowed types).
  */
 function validateApplication(req, res, next) {
-  const { certificate_type } = req.body;
+  const { certificate_type, officer_id } = req.body;
+
+  if (Object.prototype.hasOwnProperty.call(req.body, 'officer_id')) {
+    return res.status(400).json({
+      success: false,
+      message: 'officer_id is not allowed in citizen application requests. The backend determines eligible officers automatically.'
+    });
+  }
 
   if (!certificate_type || certificate_type.trim() === '') {
     return res.status(400).json({
@@ -37,7 +44,14 @@ function validateApplication(req, res, next) {
  * Requires: status ('Approved' or 'Rejected').
  */
 function validateReview(req, res, next) {
-  const { status } = req.body;
+  const { status, officer_id } = req.body;
+
+  if (Object.prototype.hasOwnProperty.call(req.body, 'officer_id')) {
+    return res.status(400).json({
+      success: false,
+      message: 'officer_id is not allowed in review requests. Use the authenticated officer JWT.'
+    });
+  }
 
   if (!status || !ALLOWED_REVIEW_STATUSES.includes(status)) {
     return res.status(400).json({

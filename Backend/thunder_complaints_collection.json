@@ -1,0 +1,39 @@
+{
+  "_type": "collection",
+  "name": "Complaints Module",
+  "requests": [
+    {
+      "id": "comp-create",
+      "name": "Create Complaint",
+      "url": "{{baseUrl}}/api/complaints",
+      "method": "POST",
+      "headers": [
+        { "key": "Content-Type", "value": "application/json" },
+        { "key": "Authorization", "value": "Bearer {{authToken}}" }
+      ],
+      "body": {
+        "type": "json",
+        "raw": "{\n  \"title\": \"Pothole on Main St\",\n  \"description\": \"Large pothole near the bus stop causing danger to vehicles.\"\n}"
+      }
+    },
+    {
+      "id": "comp-list",
+      "name": "Get My Complaints",
+      "url": "{{baseUrl}}/api/complaints",
+      "method": "GET",
+      "headers": [
+        { "key": "Authorization", "value": "Bearer {{authToken}}" }
+      ]
+    }
+  ],
+  "environments": [
+    {
+      "id": "env-comp-local",
+      "name": "Local",
+      "values": [
+        { "key": "baseUrl", "value": "http://localhost:5000" },
+        { "key": "authToken", "value": "" }
+      ]
+    }
+  ]
+}

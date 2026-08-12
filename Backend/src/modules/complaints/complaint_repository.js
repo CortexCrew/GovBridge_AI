@@ -14,12 +14,43 @@ const createComplaint = async (complaint) => {
   }
 };
 
-const getAllComplaints = async (userId, role = 'CITIZEN') => {
+const getComplaintsByDepartment = async (departmentId) => {
+  const query = `
+    SELECT *
+    FROM complaints
+    WHERE department_id = $1
+    ORDER BY created_at DESC;
+  `;
+
+  try {
+    const result = await db.query(query, [departmentId]);
+    return result.rows;
+  } catch (error) {
+    console.error('Error retrieving complaints by department:', error);
+    throw error;
+  }
+};
+
+const getAllComplaints = async (userId, role = 'CITIZEN', officerId = null) => {
   if (role === 'OFFICER') {
-    const query = 'SELECT * FROM complaints ORDER BY created_at DESC';
+    if (!officerId) {
+      throw new Error('Officer authentication required');
+    }
+
+    const officerQuery = `
+      SELECT department_id
+      FROM officers
+      WHERE officer_id = $1 AND is_active = TRUE;
+    `;
+
     try {
-      const result = await db.query(query);
-      return result.rows;
+      const officerResult = await db.query(officerQuery, [officerId]);
+      if (!officerResult.rows.length) {
+        return [];
+      }
+
+      const departmentId = officerResult.rows[0].department_id;
+      return await getComplaintsByDepartment(departmentId);
     } catch (error) {
       console.error('Error retrieving officer complaints:', error);
       throw error;
@@ -65,8 +96,8 @@ const ai_parser = async (complaint) => {
 };
 
 const updateComplaintWithAI = async (complaintId, aiFields) => {
-  const query = 'UPDATE complaints SET category = $1, priority = $2, department = $3, ai_summary = $4, updated_at = NOW() WHERE complaint_id = $5 RETURNING *';
-  const values = [aiFields.category, aiFields.priority, aiFields.department, aiFields.ai_summary, complaintId];
+  const query = 'UPDATE complaints SET category = $1, priority = $2, department = $3, department_id = $4, ai_summary = $5, updated_at = NOW() WHERE complaint_id = $6 RETURNING *';
+  const values = [aiFields.category, aiFields.priority, aiFields.department, aiFields.department_id, aiFields.ai_summary, complaintId];
 
   try {
     const result = await db.query(query, values);
@@ -77,6 +108,32 @@ const updateComplaintWithAI = async (complaintId, aiFields) => {
   } catch (error) {
     console.error('Error updating complaint with AI data:', error);
     throw error;
+  }
+};
+
+const getDepartmentIdByName = async (departmentName) => {
+  const query = `
+    SELECT department_id
+    FROM departments
+    WHERE LOWER(TRIM(department_name)) = LOWER(TRIM($1))
+    AND is_active = TRUE
+    LIMIT 1
+  `;
+
+  try {
+    const result = await db.query(query, [departmentName]);
+    if (!result.rows.length) {
+      throw new Error(
+        `Department lookup failed. AI returned "${departmentName}" but no matching department found in database.`
+      );
+    }
+    return result.rows[0].department_id;
+  } catch (error) {
+    if (error.message.startsWith('Department lookup failed')) {
+      throw error;
+    }
+    console.error('Error looking up department by name:', error);
+    throw new Error(`Database error during department lookup: ${error.message}`);
   }
 };
 
@@ -96,6 +153,7 @@ const init = async () => {
       complaint_id SERIAL PRIMARY KEY,
       user_id INTEGER NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
       department VARCHAR(255),
+      department_id INTEGER REFERENCES departments(department_id) ON DELETE SET NULL,
       title VARCHAR(255) NOT NULL,
       description TEXT NOT NULL,
       category VARCHAR(100),
@@ -108,9 +166,11 @@ const init = async () => {
     );
   `);
 
+  // Ensure department_id column exists with proper foreign key constraint
+  // This handles cases where the table was created before the department_id column was added
   await db.query(`
     ALTER TABLE complaints
-    ADD COLUMN IF NOT EXISTS department VARCHAR(255);
+    ADD COLUMN IF NOT EXISTS department_id INTEGER REFERENCES departments(department_id) ON DELETE SET NULL;
   `);
 };
 
@@ -118,7 +178,9 @@ module.exports = {
   init,
   createComplaint,
   getAllComplaints,
+  getComplaintsByDepartment,
   ai_parser,
   updateComplaintWithAI,
+  getDepartmentIdByName,
   deleteComplaintById,
 };

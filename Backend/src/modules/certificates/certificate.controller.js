@@ -41,6 +41,20 @@ class CertificateController {
     }
   }
 
+  async getOfficerApplications(req, res, next) {
+    try {
+      const officerId = req.user.officer_id;
+      const applications = await service.getOfficerApplications(officerId);
+
+      return res.status(200).json({
+        success: true,
+        data: applications
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
   /**
    * GET /api/certificates/my-applications/:id
    * Citizen retrieves details of a specific application (with documents).
@@ -70,7 +84,7 @@ class CertificateController {
     try {
       const applicationId = parseInt(req.params.id, 10);
       const { status, remarks } = req.body;
-      const officerId = req.user.officer_id || req.user.user_id || null;
+      const officerId = req.user.officer_id || null;
 
       const result = await service.reviewApplication(
         applicationId,

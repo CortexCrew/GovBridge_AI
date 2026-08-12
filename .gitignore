@@ -1,11 +1,20 @@
-# Dependencies
+# Node / JavaScript
 node_modules/
+Backend/node_modules/
 
-<<<<<<< HEAD
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
 # Environment and secrets
 .env
-.env.*
+.env.local
+.env.*.local
+Backend/.env
+Backend/.env.local
+Backend/.env.*.local
 !.env.example
+!Backend/.env.example
 
 # Python
 __pycache__/
@@ -13,50 +22,25 @@ __pycache__/
 .venv/
 venv/
 env/
-
-# Test and coverage output
 .pytest_cache/
 .coverage
 coverage/
 htmlcov/
 
-# Logs
-*.log
+# App runtime artifacts
+uploads/
+Backend/uploads/
+temp/
 logs/
+*.log
 
 # Build output
 dist/
 build/
 
-# Editor and operating-system files
+# Editors / OS
 .vscode/
 .idea/
 *.swp
-=======
-# Python Virtual Environments
-venv/
-.venv/
-
-# Environment Variables & Secrets
-.env
-.env.local
-.env.*.local
-
-# Logs
-*.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-
-# Application Uploads & Temp Files
-uploads/
-temp/
-
-# IDE & Editor directories
-.vscode/
-.idea/
-
-# Operating System Files
->>>>>>> origin/feature/officer-module
 .DS_Store
 Thumbs.db

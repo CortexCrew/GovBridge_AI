@@ -50,14 +50,29 @@ const createComplaint = async (data) => {
     });
 
     const parsedAI = normalizeAIResult(aiResponse);
+    console.log('AI Response Parsed:', { department: parsedAI.department, category: parsedAI.category, priority: parsedAI.priority });
+
+    // Look up the department_id from the AI-returned department name
+    let departmentId;
+    try {
+      departmentId = await complaintRepository.getDepartmentIdByName(parsedAI.department);
+      console.log(`Department lookup successful: "${parsedAI.department}" → department_id = ${departmentId}`);
+    } catch (error) {
+      console.error('Department lookup error:', error.message);
+      // If department lookup fails, delete the incomplete complaint and throw error
+      await complaintRepository.deleteComplaintById(savedComplaint.complaint_id);
+      throw error;
+    }
 
     const updatedComplaint = await complaintRepository.updateComplaintWithAI(savedComplaint.complaint_id, {
       category: parsedAI.category,
       priority: parsedAI.priority,
       department: parsedAI.department,
+      department_id: departmentId,
       ai_summary: parsedAI.summary,
     });
 
+    console.log(`Complaint created successfully with department_id = ${departmentId}`, updatedComplaint);
     return updatedComplaint;
   } catch (error) {
     console.error('AI processing failed for complaint:', error.message);
@@ -65,12 +80,25 @@ const createComplaint = async (data) => {
   }
 };
 
-const getAllComplaints = async (user_id, role) => {
-  return await complaintRepository.getAllComplaints(user_id);
+const getAllComplaints = async (user_id, role, officerId = null) => {
+  return await complaintRepository.getAllComplaints(user_id, role, officerId);
+};
+
+const deleteComplaint = async (complaintId, userId) => {
+  const complaint = await complaintRepository.getAllComplaints(userId);
+  const exists = complaint.some((item) => Number(item.complaint_id) === Number(complaintId));
+
+  if (!exists) {
+    throw new Error('Complaint not found or not authorized to delete.');
+  }
+
+  await complaintRepository.deleteComplaintById(complaintId);
+  return { complaint_id: Number(complaintId), deleted: true };
 };
 
 module.exports = {
   createComplaint,
   getAllComplaints,
+  deleteComplaint,
 };
 

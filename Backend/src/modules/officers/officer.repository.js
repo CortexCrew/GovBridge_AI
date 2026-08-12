@@ -20,11 +20,17 @@ class OfficerRepository {
         email VARCHAR(255) UNIQUE NOT NULL,
         password_hash VARCHAR(255) NOT NULL,
         department_id INTEGER REFERENCES departments(department_id) ON DELETE SET NULL,
+        certificate_types TEXT[] NOT NULL DEFAULT '{}',
         role VARCHAR(50) NOT NULL DEFAULT 'OFFICER',
         is_active BOOLEAN DEFAULT TRUE,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
+    `);
+
+    await db.query(`
+      ALTER TABLE officers
+      ADD COLUMN IF NOT EXISTS certificate_types TEXT[] DEFAULT '{}';
     `);
 
     await db.query(`
@@ -59,6 +65,7 @@ class OfficerRepository {
         name, 
         email, 
         department_id, 
+        certificate_types,
         role, 
         is_active, 
         created_at,
@@ -83,6 +90,7 @@ class OfficerRepository {
         email, 
         password_hash, 
         department_id, 
+        certificate_types,
         role, 
         is_active, 
         created_at,
@@ -93,6 +101,18 @@ class OfficerRepository {
 
     const { rows } = await db.query(query, [email]);
     return rows[0] || null;
+  }
+
+  async findEligibleOfficersByCertificateType(certificateType) {
+    const query = `
+      SELECT officer_id, name, email, department_id, certificate_types, role, is_active
+      FROM officers
+      WHERE is_active = TRUE
+      AND $1 = ANY(certificate_types);
+    `;
+
+    const { rows } = await db.query(query, [certificateType]);
+    return rows;
   }
 
   /**

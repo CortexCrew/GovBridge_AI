@@ -1,5 +1,6 @@
 const fs = require('fs');
 const repository = require('./certificate.repository');
+const officerRepository = require('../officers/officer.repository');
 const { ALLOWED_CERTIFICATE_TYPES } = require('./certificate.validation');
 
 class CertificateService {
@@ -67,6 +68,24 @@ class CertificateService {
     return await repository.getApplicationsByUser(userId);
   }
 
+  async getOfficerApplications(officerId) {
+    const officer = await officerRepository.findById(officerId);
+
+    if (!officer) {
+      const err = new Error('Officer not found');
+      err.statusCode = 404;
+      throw err;
+    }
+
+    if (!officer.is_active) {
+      const err = new Error('Officer account is inactive');
+      err.statusCode = 403;
+      throw err;
+    }
+
+    return await repository.getApplicationsForOfficer(officerId);
+  }
+
   /**
    * Get full details of one application (including its documents).
    * Enforces that only the owning citizen can view it.
@@ -102,20 +121,55 @@ class CertificateService {
    * @param {number|null} officerId
    */
   async reviewApplication(applicationId, status, remarks, officerId = null) {
-    const application = await repository.updateApplicationStatus(
-      applicationId,
-      status,
-      remarks,
-      officerId
-    );
+    if (!officerId) {
+      const err = new Error('Officer authentication required');
+      err.statusCode = 401;
+      throw err;
+    }
 
+    const officer = await officerRepository.findById(officerId);
+    if (!officer) {
+      const err = new Error('Officer not found');
+      err.statusCode = 404;
+      throw err;
+    }
+
+    if (!officer.is_active) {
+      const err = new Error('Officer account is inactive');
+      err.statusCode = 403;
+      throw err;
+    }
+
+    const application = await repository.getApplicationById(applicationId);
     if (!application) {
       const err = new Error('Application not found');
       err.statusCode = 404;
       throw err;
     }
 
-    return { application };
+    const officerCertificateTypes = Array.isArray(officer.certificate_types)
+      ? officer.certificate_types
+      : [];
+
+    if (!officerCertificateTypes.includes(application.certificate_type)) {
+      const err = new Error('You are not authorized to review this certificate type');
+      err.statusCode = 403;
+      throw err;
+    }
+
+    const updatedApplication = await repository.updateApplicationStatus(
+      applicationId,
+      status,
+      remarks
+    );
+
+    if (!updatedApplication) {
+      const err = new Error('Application not found');
+      err.statusCode = 404;
+      throw err;
+    }
+
+    return { application: updatedApplication };
   }
 
   /**

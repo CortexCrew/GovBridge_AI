@@ -20,13 +20,21 @@ function authMiddleware(req, res, next) {
 
   try {
     const decoded = jwt.verify(token, env.JWT_SECRET);
-    
-    // Ensure req.user strictly uses user_id
-    req.user = {
-      user_id: decoded.user_id || decoded.id,
+
+    const reqUser = {
       email: decoded.email,
       role: decoded.role || 'CITIZEN'
     };
+
+    if (decoded.user_id !== undefined && decoded.user_id !== null) {
+      reqUser.user_id = decoded.user_id;
+    }
+
+    if (decoded.officer_id !== undefined && decoded.officer_id !== null) {
+      reqUser.officer_id = decoded.officer_id;
+    }
+
+    req.user = reqUser;
 
     next();
   } catch (err) {
