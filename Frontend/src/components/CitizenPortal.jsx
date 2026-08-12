@@ -148,13 +148,7 @@ export default function CitizenPortal({
       {activeTab === 'applications' && (
         <div className="glass-panel rounded-2xl p-6 border border-slate-800 space-y-4">
           <div className="flex items-center justify-between">
-            <h2 className="text-xl font-bold text-white">Your Certificate Applications</h2>
-            <button
-              onClick={() => onApplyCertificate(services[0])}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold transition-all shadow-md shadow-emerald-900/30"
-            >
-              <Plus className="w-4 h-4" /> New Application
-            </button>
+            <h2 className="text-xl font-bold text-white">Your Certificate Applications & Digital Locker</h2>
           </div>
 
           {applications.length === 0 ? (

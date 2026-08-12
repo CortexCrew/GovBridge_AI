@@ -1,13 +1,24 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, AlertCircle } from 'lucide-react';
 
 export default function ComplaintModal({ isOpen, onClose, onSubmit }) {
   const [formData, setFormData] = useState({
-    title: 'Water Pipeline Leakage on Main Street',
+    title: '',
     category: 'Water Supply Department',
-    description: 'Heavy water leakage observed near Sector 4 junction causing road damage and water supply interruption.',
-    priority: 'HIGH'
+    description: '',
+    priority: 'MEDIUM'
   });
+
+  useEffect(() => {
+    if (isOpen) {
+      setFormData({
+        title: '',
+        category: 'Water Supply Department',
+        description: '',
+        priority: 'MEDIUM'
+      });
+    }
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -37,6 +48,7 @@ export default function ComplaintModal({ isOpen, onClose, onSubmit }) {
             <input
               type="text"
               required
+              placeholder="e.g. Water pipeline leakage near Sector 4"
               value={formData.title}
               onChange={(e) => setFormData({ ...formData, title: e.target.value })}
               className="w-full p-2.5 rounded-xl glass-input text-xs"
@@ -78,6 +90,7 @@ export default function ComplaintModal({ isOpen, onClose, onSubmit }) {
             <textarea
               rows={3}
               required
+              placeholder="Provide clear location details and description of the issue..."
               value={formData.description}
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
               className="w-full p-2.5 rounded-xl glass-input text-xs"

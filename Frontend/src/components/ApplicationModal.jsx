@@ -1,14 +1,26 @@
-import React, { useState } from 'react';
-import { X, UploadCloud, FileText, CheckCircle2 } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { X, UploadCloud, FileText } from 'lucide-react';
 
-export default function ApplicationModal({ isOpen, service, onClose, onSubmit }) {
+export default function ApplicationModal({ isOpen, service, user, onClose, onSubmit }) {
   const [formData, setFormData] = useState({
-    income: '250000',
-    purpose: 'Education Scholarship & Fee Concession',
-    applicant_name: 'Sukanthan Suresh',
-    address: 'No 45, Civil Lines, University Campus'
+    applicant_name: '',
+    income: '',
+    purpose: '',
+    address: ''
   });
   const [files, setFiles] = useState([]);
+
+  useEffect(() => {
+    if (isOpen) {
+      setFormData({
+        applicant_name: user?.name || '',
+        income: '',
+        purpose: '',
+        address: ''
+      });
+      setFiles([]);
+    }
+  }, [isOpen, user]);
 
   if (!isOpen || !service) return null;
 
@@ -49,6 +61,7 @@ export default function ApplicationModal({ isOpen, service, onClose, onSubmit })
             <input
               type="text"
               required
+              placeholder="Enter your full legal name"
               value={formData.applicant_name}
               onChange={(e) => setFormData({ ...formData, applicant_name: e.target.value })}
               className="w-full p-2.5 rounded-xl glass-input text-xs"
@@ -61,6 +74,7 @@ export default function ApplicationModal({ isOpen, service, onClose, onSubmit })
               <input
                 type="number"
                 required
+                placeholder="e.g. 250000"
                 value={formData.income}
                 onChange={(e) => setFormData({ ...formData, income: e.target.value })}
                 className="w-full p-2.5 rounded-xl glass-input text-xs"
@@ -71,6 +85,7 @@ export default function ApplicationModal({ isOpen, service, onClose, onSubmit })
               <input
                 type="text"
                 required
+                placeholder="e.g. Higher Education Scholarship"
                 value={formData.purpose}
                 onChange={(e) => setFormData({ ...formData, purpose: e.target.value })}
                 className="w-full p-2.5 rounded-xl glass-input text-xs"
@@ -83,6 +98,7 @@ export default function ApplicationModal({ isOpen, service, onClose, onSubmit })
             <textarea
               rows={2}
               required
+              placeholder="Enter complete residential address"
               value={formData.address}
               onChange={(e) => setFormData({ ...formData, address: e.target.value })}
               className="w-full p-2.5 rounded-xl glass-input text-xs"
