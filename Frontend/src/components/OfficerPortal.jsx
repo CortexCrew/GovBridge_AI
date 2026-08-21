@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { 
-  Building2, CheckCircle, XCircle, Clock, ShieldCheck, AlertCircle, 
-  FileText, Check, X, ArrowUpRight, MessageSquare, Filter, RefreshCw
+  Building2, CheckCircle, XCircle, Clock, ShieldCheck, AlertCircle
 } from 'lucide-react';
 
 export default function OfficerPortal({ 
@@ -10,7 +9,7 @@ export default function OfficerPortal({
   const [activeTab, setActiveTab] = useState('certificates');
   const [selectedApp, setSelectedApp] = useState(null);
   const [selectedComplaint, setSelectedComplaint] = useState(null);
-  const [rejectReason, setRejectReason] = useState('');
+  const [remarks, setRemarks] = useState('');
   const [resolutionNotes, setResolutionNotes] = useState('');
   const [reviewMode, setReviewMode] = useState(null); // 'approve' | 'reject' | null
 
@@ -36,19 +35,22 @@ export default function OfficerPortal({
     );
   }
 
-  const pendingApps = applications.filter(a => a.status === 'PENDING' || a.status === 'UNDER_REVIEW');
-  const approvedApps = applications.filter(a => a.status === 'APPROVED');
-  const pendingComplaints = complaints.filter(c => c.status !== 'RESOLVED');
+  const safeApps = Array.isArray(applications) ? applications : [];
+  const safeComplaints = Array.isArray(complaints) ? complaints : [];
 
-  const handleConfirmReview = (status) => {
+  const pendingApps = safeApps.filter(a => String(a.status).toUpperCase() === 'PENDING' || String(a.status).toUpperCase() === 'UNDER_REVIEW');
+  const approvedApps = safeApps.filter(a => String(a.status).toUpperCase() === 'APPROVED');
+  const pendingComplaints = safeComplaints.filter(c => String(c.status).toUpperCase() !== 'RESOLVED');
+
+  const handleConfirmReview = (statusString) => {
     if (!selectedApp) return;
-    if (status === 'REJECTED' && !rejectReason.trim()) {
-      alert('Please enter a rejection reason.');
+    if (!remarks.trim()) {
+      alert('Please enter review remarks.');
       return;
     }
-    onReviewCertificate(selectedApp.id || selectedApp.application_id, status, rejectReason);
+    onReviewCertificate(selectedApp.id || selectedApp.application_id, statusString, remarks);
     setSelectedApp(null);
-    setRejectReason('');
+    setRemarks('');
     setReviewMode(null);
   };
 
@@ -117,7 +119,7 @@ export default function OfficerPortal({
         </div>
 
         <div className="glass-card rounded-2xl p-5 border border-slate-800 space-y-2">
-          <span className="text-xs font-mono text-slate-400 uppercase">Department Complaints</span>
+          <span className="text-xs font-mono text-slate-400 uppercase">Active Complaints</span>
           <div className="flex items-center justify-between">
             <span className="text-3xl font-extrabold text-cyan-400 font-heading">{pendingComplaints.length}</span>
             <AlertCircle className="w-6 h-6 text-cyan-400/60" />
@@ -146,7 +148,7 @@ export default function OfficerPortal({
                 : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
             }`}
           >
-            Certificate Review Workbench ({applications.length})
+            Certificate Review Workbench ({safeApps.length})
           </button>
           <button
             onClick={() => setActiveTab('complaints')}
@@ -156,7 +158,7 @@ export default function OfficerPortal({
                 : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
             }`}
           >
-            Department Complaints ({complaints.length})
+            Department Complaints ({safeComplaints.length})
           </button>
         </div>
       </div>
@@ -182,7 +184,7 @@ export default function OfficerPortal({
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/60">
-                {applications.map((app) => (
+                {safeApps.map((app) => (
                   <tr key={app.id || app.application_id} className="hover:bg-slate-800/40 transition-colors">
                     <td className="px-4 py-3.5 font-mono text-cyan-400 font-semibold">
                       #{app.id || app.application_id}
@@ -198,9 +200,9 @@ export default function OfficerPortal({
                     </td>
                     <td className="px-4 py-3.5">
                       <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold ${
-                        app.status === 'APPROVED'
+                        String(app.status).toUpperCase() === 'APPROVED'
                           ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                          : app.status === 'REJECTED'
+                          : String(app.status).toUpperCase() === 'REJECTED'
                           ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
                           : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
                       }`}>
@@ -208,18 +210,24 @@ export default function OfficerPortal({
                       </span>
                     </td>
                     <td className="px-4 py-3.5 text-right space-x-2">
-                      <button
-                        onClick={() => { setSelectedApp(app); setReviewMode('approve'); }}
-                        className="px-3 py-1.5 rounded-lg bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 text-xs font-semibold transition-colors"
-                      >
-                        Approve
-                      </button>
-                      <button
-                        onClick={() => { setSelectedApp(app); setReviewMode('reject'); }}
-                        className="px-3 py-1.5 rounded-lg bg-rose-500/20 text-rose-300 hover:bg-rose-500/30 text-xs font-semibold transition-colors"
-                      >
-                        Reject
-                      </button>
+                      {String(app.status).toUpperCase() === 'APPROVED' || String(app.status).toUpperCase() === 'REJECTED' ? (
+                        <span className="text-xs text-slate-500 font-mono italic">Reviewed</span>
+                      ) : (
+                        <>
+                          <button
+                            onClick={() => { setSelectedApp(app); setReviewMode('approve'); }}
+                            className="px-3 py-1.5 rounded-lg bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 text-xs font-semibold transition-colors"
+                          >
+                            Approve
+                          </button>
+                          <button
+                            onClick={() => { setSelectedApp(app); setReviewMode('reject'); }}
+                            className="px-3 py-1.5 rounded-lg bg-rose-500/20 text-rose-300 hover:bg-rose-500/30 text-xs font-semibold transition-colors"
+                          >
+                            Reject
+                          </button>
+                        </>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -234,28 +242,42 @@ export default function OfficerPortal({
         <div className="glass-panel rounded-2xl p-6 border border-slate-800 space-y-4">
           <h2 className="text-lg font-bold text-white">Department Complaints List</h2>
           <div className="space-y-3">
-            {complaints.map((c) => (
-              <div key={c.id || c.complaint_id} className="glass-card rounded-xl p-5 border border-slate-800 flex flex-wrap items-center justify-between gap-4">
-                <div className="space-y-1 max-w-xl">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-mono text-cyan-400 bg-cyan-500/10 px-2 py-0.5 rounded border border-cyan-500/20">
-                      #{c.id || c.complaint_id} • {c.category || 'Civic'}
-                    </span>
-                    <span className="text-xs text-slate-400 font-mono">Priority: {c.priority || 'MEDIUM'}</span>
+            {safeComplaints.map((c) => {
+              const isResolved = String(c.status).toUpperCase() === 'RESOLVED';
+              return (
+                <div key={c.id || c.complaint_id} className="glass-card rounded-xl p-5 border border-slate-800 flex flex-wrap items-center justify-between gap-4">
+                  <div className="space-y-1 max-w-xl">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-mono text-cyan-400 bg-cyan-500/10 px-2 py-0.5 rounded border border-cyan-500/20">
+                        #{c.id || c.complaint_id} • {c.category || 'Civic'}
+                      </span>
+                      <span className="text-xs text-slate-400 font-mono">Priority: {c.priority || 'MEDIUM'}</span>
+                    </div>
+                    <h3 className="font-bold text-white text-base">{c.title}</h3>
+                    <p className="text-xs text-slate-400">{c.description}</p>
+                    {(c.remarks || c.resolution_notes) && (
+                      <div className="mt-2 p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-300">
+                        <strong>Resolution Note:</strong> {c.remarks || c.resolution_notes}
+                      </div>
+                    )}
                   </div>
-                  <h3 className="font-bold text-white text-base">{c.title}</h3>
-                  <p className="text-xs text-slate-400">{c.description}</p>
+                  <div className="flex items-center gap-3">
+                    {isResolved ? (
+                      <span className="px-3.5 py-1.5 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-xs font-semibold flex items-center gap-1.5">
+                        <CheckCircle className="w-4 h-4" /> Resolved
+                      </span>
+                    ) : (
+                      <button
+                        onClick={() => setSelectedComplaint(c)}
+                        className="px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-semibold transition-all shadow-md shadow-cyan-900/30"
+                      >
+                        Resolve Complaint
+                      </button>
+                    )}
+                  </div>
                 </div>
-                <div className="flex items-center gap-3">
-                  <button
-                    onClick={() => setSelectedComplaint(c)}
-                    className="px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-semibold transition-all shadow-md shadow-cyan-900/30"
-                  >
-                    Resolve Complaint
-                  </button>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}
@@ -275,25 +297,23 @@ export default function OfficerPortal({
               <strong>Certificate Type:</strong> {selectedApp.certificate_type}
             </p>
 
-            {reviewMode === 'reject' && (
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-slate-300">Mandatory Rejection Reason:</label>
-                <textarea
-                  rows={3}
-                  value={rejectReason}
-                  onChange={(e) => setRejectReason(e.target.value)}
-                  placeholder="State clear reasons why the application is rejected..."
-                  className="w-full p-3 rounded-xl glass-input text-xs"
-                />
-              </div>
-            )}
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-slate-300">Officer Verification Remarks:</label>
+              <textarea
+                rows={3}
+                value={remarks}
+                onChange={(e) => setRemarks(e.target.value)}
+                placeholder={reviewMode === 'approve' ? 'e.g. All supporting documents verified successfully.' : 'e.g. Supporting documents are insufficient.'}
+                className="w-full p-3 rounded-xl glass-input text-xs"
+              />
+            </div>
 
             <div className="pt-4 flex justify-end gap-2">
               <button onClick={() => setSelectedApp(null)} className="px-4 py-2 bg-slate-800 text-slate-300 rounded-xl text-xs">
                 Cancel
               </button>
               <button
-                onClick={() => handleConfirmReview(reviewMode === 'approve' ? 'APPROVED' : 'REJECTED')}
+                onClick={() => handleConfirmReview(reviewMode === 'approve' ? 'Approved' : 'Rejected')}
                 className={`px-4 py-2 rounded-xl text-xs font-semibold text-white ${
                   reviewMode === 'approve' ? 'bg-emerald-600 hover:bg-emerald-500' : 'bg-rose-600 hover:bg-rose-500'
                 }`}

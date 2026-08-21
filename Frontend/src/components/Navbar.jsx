@@ -1,7 +1,7 @@
 import React from 'react';
-import { Landmark, User, ShieldCheck, LogOut, Sparkles } from 'lucide-react';
+import { Landmark, User, ShieldCheck, LogOut, Sparkles, Settings } from 'lucide-react';
 
-export default function Navbar({ activePortal, setActivePortal, user, onOpenAuth, onLogout }) {
+export default function Navbar({ activePortal, setActivePortal, user, onOpenAuth, onLogout, onOpenProfile }) {
   const isOfficer = user && user.role === 'OFFICER';
   const isCitizen = user && user.role !== 'OFFICER';
 
@@ -74,13 +74,25 @@ export default function Navbar({ activePortal, setActivePortal, user, onOpenAuth
         <div className="flex items-center gap-3">
           {user ? (
             <div className="flex items-center gap-3">
-              <div className="hidden md:flex flex-col items-end">
-                <span className="text-sm font-semibold text-slate-200">{user.name || user.email}</span>
-                <span className={`text-xs font-mono flex items-center gap-1 ${isOfficer ? 'text-cyan-400' : 'text-emerald-400'}`}>
-                  <span className={`w-1.5 h-1.5 rounded-full animate-pulse ${isOfficer ? 'bg-cyan-400' : 'bg-emerald-400'}`} />
-                  {isOfficer ? `Officer (Dept #${user.department_id || 1})` : 'Citizen Account'}
-                </span>
-              </div>
+              <button
+                onClick={onOpenProfile}
+                className="flex items-center gap-2.5 px-3 py-1.5 rounded-xl bg-slate-900/90 hover:bg-slate-800 border border-slate-800 transition-all text-left group"
+                title="Manage Profile Settings"
+              >
+                <div className="w-7 h-7 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold text-xs">
+                  {user.name ? user.name.charAt(0).toUpperCase() : 'U'}
+                </div>
+                <div className="hidden md:flex flex-col">
+                  <span className="text-xs font-semibold text-slate-200 group-hover:text-emerald-400 transition-colors">
+                    {user.name || user.email}
+                  </span>
+                  <span className={`text-[10px] font-mono flex items-center gap-1 ${isOfficer ? 'text-cyan-400' : 'text-emerald-400'}`}>
+                    {isOfficer ? `Officer (Dept #${user.department_id || 1})` : 'Edit Profile'}
+                  </span>
+                </div>
+                <Settings className="w-3.5 h-3.5 text-slate-400 group-hover:text-emerald-400 group-hover:rotate-45 transition-all" />
+              </button>
+
               <button
                 onClick={onLogout}
                 className="p-2 rounded-lg bg-slate-800/80 hover:bg-rose-500/10 text-slate-400 hover:text-rose-400 border border-slate-700/50 hover:border-rose-500/30 transition-colors"

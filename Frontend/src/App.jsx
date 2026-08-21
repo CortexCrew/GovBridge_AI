@@ -5,18 +5,20 @@ import OfficerPortal from './components/OfficerPortal';
 import AuthModal from './components/AuthModal';
 import ApplicationModal from './components/ApplicationModal';
 import ComplaintModal from './components/ComplaintModal';
+import UserProfileModal from './components/UserProfileModal';
 import { apiRequest } from './services/api';
 
 export default function App() {
   const [activePortal, setActivePortal] = useState('citizen'); // 'citizen' | 'officer'
   const [user, setUser] = useState(null);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [authTab, setAuthTab] = useState('citizen_login');
   const [selectedService, setSelectedService] = useState(null);
   const [isComplaintModalOpen, setIsComplaintModalOpen] = useState(false);
   const [toast, setToast] = useState(null);
 
-  // Applications & Complaints State (Starts empty, populated dynamically)
+  // Applications & Complaints State
   const [applications, setApplications] = useState([]);
   const [complaints, setComplaints] = useState([]);
 
@@ -24,6 +26,23 @@ export default function App() {
     setToast({ message, type });
     setTimeout(() => setToast(null), 4000);
   };
+
+  // Check stored token and restore user profile on mount
+  useEffect(() => {
+    const restoreSession = async () => {
+      const token = localStorage.getItem('token');
+      if (!token) return;
+
+      const profileRes = await apiRequest('/auth/profile');
+      if (profileRes && profileRes.success && profileRes.data) {
+        setUser(profileRes.data);
+        if (profileRes.data.role === 'OFFICER') {
+          setActivePortal('officer');
+        }
+      }
+    };
+    restoreSession();
+  }, []);
 
   // Open Auth Modal with specific initial tab
   const handleOpenAuth = (tab = 'citizen_login') => {
@@ -46,12 +65,21 @@ export default function App() {
 
     // Complaints
     const compEndpoint = user.role === 'OFFICER'
-      ? '/officers/complaints'
+      ? '/complaints'
       : '/complaints';
     const compRes = await apiRequest(compEndpoint);
     if (compRes && (compRes.success || Array.isArray(compRes))) {
       const list = Array.isArray(compRes) ? compRes : compRes.data || [];
-      setComplaints(list);
+      const resolvedMap = JSON.parse(localStorage.getItem('resolved_complaints') || '{}');
+
+      const updatedList = list.map(c => {
+        const cId = c.id || c.complaint_id;
+        if (resolvedMap[cId]) {
+          return { ...c, ...resolvedMap[cId] };
+        }
+        return c;
+      });
+      setComplaints(updatedList);
     }
   };
 
@@ -79,12 +107,21 @@ export default function App() {
     showToast('Logged out successfully.');
   };
 
+  // Profile Callbacks
+  const handleProfileUpdated = (updatedUser) => {
+    setUser(updatedUser);
+    showToast('Profile details updated successfully!');
+  };
+
+  const handleAccountDeleted = () => {
+    handleLogout();
+    showToast('Your account has been deleted.', 'error');
+  };
+
   // Citizen Application Handler
   const handleApplySubmit = async (appData) => {
     const formData = new FormData();
     formData.append('certificate_type', appData.certificate_type);
-    formData.append('department_id', appData.department_id);
-    formData.append('application_data', JSON.stringify(appData.application_data));
     
     if (appData.files && appData.files.length > 0) {
       appData.files.forEach(file => formData.append('documents', file));
@@ -98,27 +135,30 @@ export default function App() {
     const newApp = {
       id: res && (res.application_id || res.data?.id) ? (res.application_id || res.data?.id) : Math.floor(100 + Math.random() * 900),
       certificate_type: appData.certificate_type,
-      status: 'PENDING',
+      status: 'Pending',
       created_at: new Date().toISOString(),
       applicant_name: user?.name || 'Citizen',
-      department_id: appData.department_id
     };
 
     setApplications([newApp, ...applications]);
     showToast(`Application for ${appData.certificate_type} submitted successfully!`);
   };
 
-  // Citizen Complaint Handler
+  // Citizen Complaint Handler (POST /api/complaints)
   const handleComplaintSubmit = async (complaintData) => {
     const res = await apiRequest('/complaints', {
       method: 'POST',
-      body: JSON.stringify(complaintData)
+      body: JSON.stringify({
+        title: complaintData.title,
+        description: complaintData.description
+      })
     });
 
     const newComplaint = {
       id: res && (res.complaint_id || res.id) ? (res.complaint_id || res.id) : Math.floor(500 + Math.random() * 900),
-      ...complaintData,
-      status: 'PENDING',
+      title: complaintData.title,
+      description: complaintData.description,
+      status: 'Pending',
       created_at: new Date().toISOString()
     };
 
@@ -126,16 +166,26 @@ export default function App() {
     showToast('Civic complaint logged successfully!');
   };
 
-  // Officer Review Handler
-  const handleReviewCertificate = async (appId, status, rejectionReason = '') => {
+  // Citizen Delete Complaint Handler (DELETE /api/complaints/:id)
+  const handleDeleteComplaint = async (complaintId) => {
+    await apiRequest(`/complaints/${complaintId}`, {
+      method: 'DELETE'
+    });
+
+    setComplaints(complaints.filter(c => (c.id !== complaintId && c.complaint_id !== complaintId)));
+    showToast(`Complaint #${complaintId} withdrawn.`);
+  };
+
+  // Officer Review Handler (PATCH /api/certificates/:id/review)
+  const handleReviewCertificate = async (appId, status, remarks = '') => {
     await apiRequest(`/certificates/${appId}/review`, {
       method: 'PATCH',
-      body: JSON.stringify({ status, rejection_reason: rejectionReason })
+      body: JSON.stringify({ status, remarks })
     });
 
     setApplications(applications.map(app => 
       (app.id === appId || app.application_id === appId)
-        ? { ...app, status, rejection_reason: rejectionReason }
+        ? { ...app, status, remarks }
         : app
     ));
 
@@ -144,18 +194,27 @@ export default function App() {
 
   // Officer Resolve Handler
   const handleResolveComplaint = async (complaintId, status, resolutionNotes) => {
-    await apiRequest(`/officers/complaints/${complaintId}/resolve`, {
+    await apiRequest(`/complaints/${complaintId}`, {
       method: 'PATCH',
-      body: JSON.stringify({ status, resolution_notes: resolutionNotes })
+      body: JSON.stringify({ status: 'RESOLVED', remarks: resolutionNotes })
     });
 
+    const resolvedMap = JSON.parse(localStorage.getItem('resolved_complaints') || '{}');
+    resolvedMap[complaintId] = {
+      status: 'RESOLVED',
+      complaint_status: 'RESOLVED',
+      remarks: resolutionNotes,
+      resolution_notes: resolutionNotes
+    };
+    localStorage.setItem('resolved_complaints', JSON.stringify(resolvedMap));
+
     setComplaints(complaints.map(c => 
-      (c.id === complaintId || c.complaint_id === complaintId)
-        ? { ...c, status, resolution_notes: resolutionNotes }
+      Number(c.id || c.complaint_id) === Number(complaintId)
+        ? { ...c, status: 'RESOLVED', complaint_status: 'RESOLVED', remarks: resolutionNotes, resolution_notes: resolutionNotes }
         : c
     ));
 
-    showToast(`Complaint #${complaintId} marked as ${status}.`);
+    showToast(`Complaint #${complaintId} marked as RESOLVED.`);
   };
 
   return (
@@ -181,6 +240,7 @@ export default function App() {
         user={user}
         onOpenAuth={handleOpenAuth}
         onLogout={handleLogout}
+        onOpenProfile={() => setIsProfileOpen(true)}
       />
 
       {/* Main Container */}
@@ -192,6 +252,7 @@ export default function App() {
             complaints={complaints}
             onApplyCertificate={(service) => setSelectedService(service)}
             onRaiseComplaint={() => setIsComplaintModalOpen(true)}
+            onDeleteComplaint={handleDeleteComplaint}
             onOpenAuth={() => handleOpenAuth('citizen_login')}
           />
         ) : (
@@ -219,9 +280,18 @@ export default function App() {
         onAuthSuccess={handleAuthSuccess}
       />
 
+      <UserProfileModal 
+        isOpen={isProfileOpen}
+        user={user}
+        onClose={() => setIsProfileOpen(false)}
+        onProfileUpdated={handleProfileUpdated}
+        onAccountDeleted={handleAccountDeleted}
+      />
+
       <ApplicationModal 
         isOpen={!!selectedService}
         service={selectedService}
+        user={user}
         onClose={() => setSelectedService(null)}
         onSubmit={handleApplySubmit}
       />

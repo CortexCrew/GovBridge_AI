@@ -1,22 +1,26 @@
 import React, { useState } from 'react';
 import { 
   FileText, AlertCircle, Award, CheckCircle2, Clock, XCircle, 
-  Plus, Search, ArrowRight, ShieldCheck, Download, Eye, Sparkles, UploadCloud
+  Search, ArrowRight, ShieldCheck, Download, Eye, Sparkles, Trash2, UserCheck, Plus
 } from 'lucide-react';
 
 export default function CitizenPortal({ 
-  user, applications, complaints, onApplyCertificate, onRaiseComplaint, onOpenAuth 
+  user, applications = [], complaints = [], onApplyCertificate, onRaiseComplaint, onDeleteComplaint, onOpenAuth 
 }) {
   const [activeTab, setActiveTab] = useState('services');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedApplication, setSelectedApplication] = useState(null);
 
-  // Filter services
+  const safeApplications = Array.isArray(applications) ? applications : [];
+  const safeComplaints = Array.isArray(complaints) ? complaints : [];
+
+  // Supported certificate types matching backend validator strictly
   const services = [
     { id: 1, title: 'Income Certificate', dept: 'Revenue Department', code: 'REV-01', time: '3-5 Days', icon: FileText, color: 'from-amber-500/20 to-orange-500/20 text-amber-400 border-amber-500/30' },
-    { id: 2, title: 'Birth Certificate', dept: 'Public Health Department', code: 'SAN-02', time: '1-2 Days', icon: Award, color: 'from-cyan-500/20 to-blue-500/20 text-cyan-400 border-cyan-500/30' },
-    { id: 3, title: 'Caste & Community Certificate', dept: 'Social Welfare Department', code: 'SWD-03', time: '5-7 Days', icon: ShieldCheck, color: 'from-purple-500/20 to-indigo-500/20 text-purple-400 border-purple-500/30' },
-    { id: 4, title: 'Residence / Nativity Certificate', dept: 'Revenue Department', code: 'REV-04', time: '2-4 Days', icon: FileText, color: 'from-emerald-500/20 to-teal-500/20 text-emerald-400 border-emerald-500/30' },
+    { id: 2, title: 'Community Certificate', dept: 'Social Welfare Department', code: 'SWD-02', time: '5-7 Days', icon: ShieldCheck, color: 'from-purple-500/20 to-indigo-500/20 text-purple-400 border-purple-500/30' },
+    { id: 3, title: 'Nativity Certificate', dept: 'Revenue Department', code: 'REV-03', time: '2-4 Days', icon: FileText, color: 'from-emerald-500/20 to-teal-500/20 text-emerald-400 border-emerald-500/30' },
+    { id: 4, title: 'Birth Certificate', dept: 'Public Health Department', code: 'SAN-04', time: '1-2 Days', icon: Award, color: 'from-cyan-500/20 to-blue-500/20 text-cyan-400 border-cyan-500/30' },
+    { id: 5, title: 'Residence Certificate', dept: 'Revenue Department', code: 'REV-05', time: '2-3 Days', icon: UserCheck, color: 'from-indigo-500/20 to-blue-500/20 text-indigo-400 border-indigo-500/30' },
   ];
 
   const filteredServices = services.filter(s => 
@@ -38,7 +42,7 @@ export default function CitizenPortal({
             Direct Access to Government Services, <span className="bg-gradient-to-r from-emerald-400 to-teal-300 bg-clip-text text-transparent">Simplified.</span>
           </h1>
           <p className="text-slate-300 text-base lg:text-lg leading-relaxed">
-            Apply for official certificates, store verified documents in your Digital Locker, and raise civic complaints with AI-powered automatic priority routing.
+            Apply for official certificates, store verified documents in your Digital Locker, and raise civic complaints with automatic priority routing.
           </p>
 
           {/* Quick Search */}
@@ -46,7 +50,7 @@ export default function CitizenPortal({
             <Search className="absolute left-4 top-6 text-slate-400 w-5 h-5" />
             <input
               type="text"
-              placeholder="Search services (e.g. Income Certificate, Sanitation)..."
+              placeholder="Search services (e.g. Income Certificate, Birth Certificate)..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full pl-12 pr-4 py-3.5 rounded-2xl glass-input text-sm text-slate-100 placeholder-slate-500"
@@ -78,7 +82,7 @@ export default function CitizenPortal({
           >
             <span>My Applications & Digital Locker</span>
             <span className="px-2 py-0.5 rounded-full bg-slate-800 text-xs font-mono text-slate-300">
-              {applications.length}
+              {safeApplications.length}
             </span>
           </button>
           <button
@@ -91,7 +95,7 @@ export default function CitizenPortal({
           >
             <span>Civic Complaints</span>
             <span className="px-2 py-0.5 rounded-full bg-slate-800 text-xs font-mono text-slate-300">
-              {complaints.length}
+              {safeComplaints.length}
             </span>
           </button>
         </div>
@@ -110,7 +114,7 @@ export default function CitizenPortal({
 
       {/* Tab Content: Services Grid */}
       {activeTab === 'services' && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredServices.map((service) => {
             const Icon = service.icon;
             return (
@@ -151,7 +155,7 @@ export default function CitizenPortal({
             <h2 className="text-xl font-bold text-white">Your Certificate Applications & Digital Locker</h2>
           </div>
 
-          {applications.length === 0 ? (
+          {safeApplications.length === 0 ? (
             <div className="text-center py-12 space-y-3">
               <FileText className="w-12 h-12 text-slate-600 mx-auto" />
               <p className="text-slate-400 text-sm">No applications submitted yet.</p>
@@ -169,7 +173,7 @@ export default function CitizenPortal({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800/60">
-                  {applications.map((app) => (
+                  {safeApplications.map((app) => (
                     <tr key={app.id || app.application_id} className="hover:bg-slate-800/40 transition-colors">
                       <td className="px-4 py-3.5 font-mono text-emerald-400 font-medium">
                         #{app.id || app.application_id}
@@ -182,15 +186,15 @@ export default function CitizenPortal({
                       </td>
                       <td className="px-4 py-3.5">
                         <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold ${
-                          app.status === 'APPROVED'
+                          app.status === 'Approved' || app.status === 'APPROVED'
                             ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                            : app.status === 'REJECTED'
+                            : app.status === 'Rejected' || app.status === 'REJECTED'
                             ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
                             : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
                         }`}>
-                          {app.status === 'APPROVED' && <CheckCircle2 className="w-3.5 h-3.5" />}
-                          {app.status === 'REJECTED' && <XCircle className="w-3.5 h-3.5" />}
-                          {app.status !== 'APPROVED' && app.status !== 'REJECTED' && <Clock className="w-3.5 h-3.5 animate-spin" />}
+                          {(app.status === 'Approved' || app.status === 'APPROVED') && <CheckCircle2 className="w-3.5 h-3.5" />}
+                          {(app.status === 'Rejected' || app.status === 'REJECTED') && <XCircle className="w-3.5 h-3.5" />}
+                          {app.status !== 'Approved' && app.status !== 'APPROVED' && app.status !== 'Rejected' && app.status !== 'REJECTED' && <Clock className="w-3.5 h-3.5 animate-spin" />}
                           {app.status}
                         </span>
                       </td>
@@ -202,9 +206,9 @@ export default function CitizenPortal({
                         >
                           <Eye className="w-4 h-4" />
                         </button>
-                        {app.status === 'APPROVED' && (
+                        {(app.status === 'Approved' || app.status === 'APPROVED') && (
                           <button
-                            onClick={() => alert(`Downloading verified certificate for Application #${app.id}`)}
+                            onClick={() => alert(`Downloading verified certificate for Application #${app.id || app.application_id}`)}
                             className="p-1.5 rounded-lg bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 transition-colors"
                             title="Download Certificate"
                           >
@@ -234,34 +238,58 @@ export default function CitizenPortal({
             </button>
           </div>
 
-          {complaints.length === 0 ? (
+          {safeComplaints.length === 0 ? (
             <div className="text-center py-12 space-y-3">
               <AlertCircle className="w-12 h-12 text-slate-600 mx-auto" />
               <p className="text-slate-400 text-sm">No complaints logged.</p>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {complaints.map((c) => (
-                <div key={c.id || c.complaint_id} className="glass-card rounded-xl p-5 space-y-3 border border-slate-800">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-mono text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
-                      {c.category || 'General'}
-                    </span>
-                    <span className={`text-xs font-semibold px-2 py-0.5 rounded ${
-                      c.status === 'RESOLVED' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-slate-800 text-slate-300'
-                    }`}>
-                      {c.status || 'PENDING'}
-                    </span>
-                  </div>
-                  <h3 className="font-bold text-white text-base">{c.title}</h3>
-                  <p className="text-xs text-slate-400 line-clamp-2">{c.description}</p>
-                  {c.resolution_notes && (
-                    <div className="p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-300">
-                      <strong>Resolution Note:</strong> {c.resolution_notes}
+              {safeComplaints.map((c) => {
+                const resolvedMap = JSON.parse(localStorage.getItem('resolved_complaints') || '{}');
+                const cId = c.id || c.complaint_id;
+                const isResolved = 
+                  Boolean(resolvedMap[cId]) ||
+                  String(c.status || '').toUpperCase() === 'RESOLVED' || 
+                  String(c.complaint_status || '').toUpperCase() === 'RESOLVED' || 
+                  String(c.status || '').toUpperCase() === 'CLOSED' ||
+                  Boolean(c.resolution_notes) ||
+                  Boolean(c.remarks);
+                return (
+                  <div key={c.id || c.complaint_id} className="glass-card rounded-xl p-5 space-y-3 border border-slate-800">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-mono text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
+                        {c.category || 'Civic Issue'}
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className={`text-xs font-semibold px-2.5 py-1 rounded-md border ${
+                          isResolved 
+                            ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' 
+                            : 'bg-slate-800 text-slate-300 border-slate-700'
+                        }`}>
+                          {isResolved ? 'RESOLVED' : (c.status || 'PENDING')}
+                        </span>
+                        {onDeleteComplaint && (
+                          <button
+                            onClick={() => onDeleteComplaint(c.id || c.complaint_id)}
+                            className="p-1 rounded bg-slate-800 hover:bg-rose-500/20 text-slate-400 hover:text-rose-400 transition-colors"
+                            title="Withdraw Complaint"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
                     </div>
-                  )}
-                </div>
-              ))}
+                    <h3 className="font-bold text-white text-base">{c.title}</h3>
+                    <p className="text-xs text-slate-400 line-clamp-2">{c.description}</p>
+                    {(c.remarks || c.resolution_notes || c.notes) && (
+                      <div className="p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-300">
+                        <strong>Resolution Note:</strong> {c.remarks || c.resolution_notes || c.notes}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
@@ -278,8 +306,8 @@ export default function CitizenPortal({
             <div className="space-y-2 text-sm text-slate-300">
               <p><strong>Type:</strong> {selectedApplication.certificate_type}</p>
               <p><strong>Status:</strong> {selectedApplication.status}</p>
-              {selectedApplication.rejection_reason && (
-                <p className="text-rose-400"><strong>Rejection Reason:</strong> {selectedApplication.rejection_reason}</p>
+              {selectedApplication.remarks && (
+                <p className="text-amber-300"><strong>Officer Remarks:</strong> {selectedApplication.remarks}</p>
               )}
             </div>
             <div className="pt-4 flex justify-end">

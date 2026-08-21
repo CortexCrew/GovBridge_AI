@@ -1,21 +1,17 @@
 import React, { useState, useEffect } from 'react';
-import { X, AlertCircle } from 'lucide-react';
+import { X, AlertCircle, Sparkles } from 'lucide-react';
 
 export default function ComplaintModal({ isOpen, onClose, onSubmit }) {
   const [formData, setFormData] = useState({
     title: '',
-    category: 'Water Supply Department',
-    description: '',
-    priority: 'MEDIUM'
+    description: ''
   });
 
   useEffect(() => {
     if (isOpen) {
       setFormData({
         title: '',
-        category: 'Water Supply Department',
-        description: '',
-        priority: 'MEDIUM'
+        description: ''
       });
     }
   }, [isOpen]);
@@ -35,16 +31,25 @@ export default function ComplaintModal({ isOpen, onClose, onSubmit }) {
         <div className="flex items-center justify-between border-b border-slate-800 pb-4">
           <div className="flex items-center gap-2">
             <AlertCircle className="w-5 h-5 text-amber-400" />
-            <h2 className="text-xl font-extrabold text-white tracking-tight">Raise Civic Complaint</h2>
+            <div>
+              <h2 className="text-xl font-extrabold text-white tracking-tight">Raise Civic Complaint</h2>
+              <p className="text-xs text-slate-400">Log a new issue for municipal resolution</p>
+            </div>
           </div>
           <button onClick={onClose} className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800">
             <X className="w-5 h-5" />
           </button>
         </div>
 
+        {/* AI Auto Routing Banner */}
+        <div className="p-3 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-300 text-xs flex items-center gap-2">
+          <Sparkles className="w-4 h-4 text-amber-400 shrink-0" />
+          <span>Department routing and priority level are automatically analyzed and assigned by <strong>GovBridge AI</strong>.</span>
+        </div>
+
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-1">
-            <label className="text-xs font-semibold text-slate-300">Complaint Title</label>
+            <label className="text-xs font-semibold text-slate-300">Complaint Title *</label>
             <input
               type="text"
               required
@@ -55,42 +60,12 @@ export default function ComplaintModal({ isOpen, onClose, onSubmit }) {
             />
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="space-y-1">
-              <label className="text-xs font-semibold text-slate-300">Category / Department</label>
-              <select
-                value={formData.category}
-                onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                className="w-full p-2.5 rounded-xl glass-input text-xs bg-slate-900"
-              >
-                <option value="Water Supply Department">Water Supply Department</option>
-                <option value="Sanitation & Waste">Sanitation & Waste</option>
-                <option value="Public Works (Roads/Potholes)">Public Works (Roads/Potholes)</option>
-                <option value="Electricity & Lighting">Electricity & Lighting</option>
-              </select>
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-xs font-semibold text-slate-300">AI Priority Level</label>
-              <select
-                value={formData.priority}
-                onChange={(e) => setFormData({ ...formData, priority: e.target.value })}
-                className="w-full p-2.5 rounded-xl glass-input text-xs bg-slate-900 font-mono"
-              >
-                <option value="LOW">LOW Priority</option>
-                <option value="MEDIUM">MEDIUM Priority</option>
-                <option value="HIGH">HIGH Priority</option>
-                <option value="URGENT">URGENT Priority</option>
-              </select>
-            </div>
-          </div>
-
           <div className="space-y-1">
-            <label className="text-xs font-semibold text-slate-300">Detailed Complaint Description</label>
+            <label className="text-xs font-semibold text-slate-300">Detailed Complaint Description *</label>
             <textarea
-              rows={3}
+              rows={4}
               required
-              placeholder="Provide clear location details and description of the issue..."
+              placeholder="Provide clear location details, landmarks, and description of the issue..."
               value={formData.description}
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
               className="w-full p-2.5 rounded-xl glass-input text-xs"
