@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { 
-  Building2, CheckCircle, XCircle, Clock, ShieldCheck, AlertCircle
+  Building2, CheckCircle, Clock, ShieldCheck, AlertCircle
 } from 'lucide-react';
 
 export default function OfficerPortal({ 
@@ -266,13 +266,17 @@ export default function OfficerPortal({
                       <span className="px-3.5 py-1.5 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-xs font-semibold flex items-center gap-1.5">
                         <CheckCircle className="w-4 h-4" /> Resolved
                       </span>
-                    ) : (
+                    ) : onResolveComplaint ? (
                       <button
                         onClick={() => setSelectedComplaint(c)}
                         className="px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-semibold transition-all shadow-md shadow-cyan-900/30"
                       >
                         Resolve Complaint
                       </button>
+                    ) : (
+                      <span className="px-3.5 py-1.5 rounded-xl bg-slate-100 text-slate-500 border border-slate-200 text-xs font-semibold">
+                        View only
+                      </span>
                     )}
                   </div>
                 </div>

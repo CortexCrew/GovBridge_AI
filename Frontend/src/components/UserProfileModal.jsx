@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { User, Mail, Phone, MapPin, Edit3, Trash2, X, ShieldCheck, Check } from 'lucide-react';
+import { User, Edit3, Trash2, X, Check } from 'lucide-react';
 import { apiRequest } from '../services/api';
 
 export default function UserProfileModal({ isOpen, user, onClose, onProfileUpdated, onAccountDeleted }) {

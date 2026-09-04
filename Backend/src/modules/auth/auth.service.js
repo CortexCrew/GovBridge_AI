@@ -1,95 +1,229 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 const env = require('../../config/env');
 const userRepository = require('./user.repository');
+const otpRepository = require('./otp.repository');
+const {
+  normalizeEmail,
+  normalizeIndianPhone,
+  parseIdentifier,
+  validatePassword,
+  validateOtpCode,
+} = require('./auth.validation');
+const { sendOtpNotification, verifyOtpWithTwilio } = require('./messaging.service');
 
 class AuthService {
   /**
-   * Register a new citizen account and profile
+   * Step 1 of OTP Registration: Validate inputs, check uniqueness, generate OTP and store pending state.
+   * @param {Object} data - { name, email, phone, password, address, city, state, pincode }
    */
-  async register(registrationData) {
-    const { name, email, password, phone, address, city, state, pincode } = registrationData;
+  async sendOtp(data) {
+    const { name, email, phone, password, address, city, state, pincode } = data || {};
 
-    // 1. Validation
     if (!name || name.trim() === '') {
-      throw new Error('Name is required');
-    }
-    if (!email || email.trim() === '') {
-      throw new Error('Email is required');
-    }
-    if (!password || password.length < 6) {
-      throw new Error('Password must be at least 6 characters long');
+      throw new Error('Full name is required');
     }
 
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email.trim())) {
-      throw new Error('Please enter a valid email address');
+    validatePassword(password);
+
+    if (!email && !phone) {
+      throw new Error('Either an email address or a phone number must be provided');
     }
 
-    // 2. Check existing user
-    const existingUser = await userRepository.findByEmail(email);
-    if (existingUser) {
-      throw new Error('A user with this email address already exists');
+    let targetIdentifier = null;
+    let normalizedEmail = null;
+    let normalizedPhone = null;
+
+    if (email && email.trim() !== '') {
+      normalizedEmail = normalizeEmail(email);
+      const existingEmail = await userRepository.findByEmail(normalizedEmail);
+      if (existingEmail) {
+        throw new Error('An account with this email address already exists');
+      }
+      targetIdentifier = normalizedEmail;
     }
 
-    // 3. Hash password
+    if (phone && String(phone).trim() !== '') {
+      normalizedPhone = normalizeIndianPhone(phone);
+      const existingPhone = await userRepository.findByPhone(normalizedPhone);
+      if (existingPhone) {
+        throw new Error('An account with this phone number already exists');
+      }
+      if (!targetIdentifier) {
+        targetIdentifier = normalizedPhone;
+      }
+    }
+
+    // Prepare USERS and CITIZENS payloads
+    // If no email was provided (phone-only), generate a fallback placeholder email for USERS.email NOT NULL constraint
+    const dbEmail = normalizedEmail || `${normalizedPhone}@phone.govbridge.local`;
+
     const saltRounds = 10;
-    const passwordHash = await bcrypt.hash(password, saltRounds);
+    const passwordHash = await bcrypt.hash(password.toString(), saltRounds);
 
-    // 4. Create USERS and CITIZENS record
     const userPayload = {
       name: name.trim(),
-      email: email.trim().toLowerCase(),
+      email: dbEmail,
       passwordHash,
-      role: 'CITIZEN'
+      role: 'CITIZEN',
     };
 
     const citizenPayload = {
-      phone: phone ? phone.trim() : null,
+      phone: normalizedPhone || null,
       address: address ? address.trim() : null,
       city: city ? city.trim() : null,
       state: state ? state.trim() : null,
-      pincode: pincode ? pincode.trim() : null
+      pincode: pincode ? pincode.trim() : null,
     };
 
-    const createdRecord = await userRepository.createUserWithCitizen(userPayload, citizenPayload);
+    const parsedTarget = parseIdentifier(targetIdentifier);
+    const otpCode = parsedTarget.type === 'EMAIL'
+      ? crypto.randomInt(100000, 999999).toString()
+      : null;
+
+    // Twilio Verify owns phone OTP state; local OTP storage remains only for email.
+    await otpRepository.saveOTP(targetIdentifier, otpCode);
+    await otpRepository.savePendingRegistration(targetIdentifier, { userPayload, citizenPayload });
+
+    // Calculate timer details
+    const expiresMinutes = env.OTP_EXPIRATION_MINUTES || 5;
+    const cooldownSeconds = env.OTP_RESEND_COOLDOWN_SECONDS || 60;
+    const expiresInSeconds = expiresMinutes * 60;
+    const expiresAtIso = new Date(Date.now() + expiresInSeconds * 1000).toISOString();
+
+    // Dispatch OTP via Email or WhatsApp
+    let delivery;
+    try {
+      delivery = await sendOtpNotification({
+        target: targetIdentifier,
+        type: parsedTarget.type,
+        otpCode,
+        expiresMinutes,
+      });
+    } catch (error) {
+      await otpRepository.deletePendingRegistration(targetIdentifier);
+      throw error;
+    }
 
     return {
       success: true,
-      message: 'Citizen registration successful',
-      user: createdRecord
+      message: `OTP sent successfully via ${delivery.channel} to ${delivery.maskedTarget}`,
+      identifier: targetIdentifier,
+      sentVia: delivery.sentVia, // 'EMAIL' or 'SMS'
+      maskedTarget: delivery.maskedTarget,
+      timer: {
+        expiresInSeconds,
+        resendAvailableInSeconds: cooldownSeconds,
+        expiresAt: expiresAtIso,
+      },
     };
   }
 
   /**
-   * Authenticate citizen login and issue JWT token
+   * Step 2 of OTP Registration: Verify OTP code and execute DB transaction to create USERS + CITIZENS records.
+   * @param {string} identifier - Email or Phone Number
+   * @param {string} otpCode - 6-digit OTP code
    */
-  async login(email, password) {
-    if (!email || !password) {
-      throw new Error('Email and password are required');
+  async verifyOtp(identifier, otpCode) {
+    if (!identifier) {
+      throw new Error('Email or phone number identifier is required');
     }
 
-    // 1. Find user by email
-    const user = await userRepository.findByEmail(email);
+    const validCode = validateOtpCode(otpCode);
+    const parsed = String(identifier).includes('@')
+      ? parseIdentifier(identifier)
+      : { type: 'PHONE', value: normalizeIndianPhone(identifier) };
+    const key = parsed.value;
+
+    const pendingData = await otpRepository.getPendingRegistration(key);
+    if (!pendingData) {
+      throw new Error('Registration session expired or invalid. Please request a new OTP.');
+    }
+
+    if (parsed.type === 'PHONE') {
+      await verifyOtpWithTwilio(parsed.value, validCode);
+    } else {
+      await otpRepository.verifyOTP(key, validCode);
+    }
+
+    // Create user and citizen records atomically in DB transaction
+    const createdRecord = await userRepository.createUserWithCitizen(
+      pendingData.userPayload,
+      pendingData.citizenPayload
+    );
+
+    // Clean up pending registration payload
+    await otpRepository.deletePendingRegistration(key);
+
+    return {
+      success: true,
+      message: 'OTP verified successfully. Citizen registration complete.',
+      user: {
+        user_id: createdRecord.user_id,
+        name: createdRecord.name,
+        email: createdRecord.email,
+        role: createdRecord.role,
+      }
+    };
+  }
+
+  /**
+   * Convenience method: Register citizen directly or route to OTP verify if otpCode is provided.
+   */
+  async register(registrationData) {
+    const { identifier, otpCode, email, phone } = registrationData || {};
+
+    if (otpCode) {
+      const id = identifier || email || phone;
+      return await this.verifyOtp(id, otpCode);
+    }
+
+    // Otherwise initiate OTP generation
+    return await this.sendOtp(registrationData);
+  }
+
+  /**
+   * Authenticate citizen login using Email OR Phone number
+   * @param {string|Object} identifierParam - Email, Phone, or { identifier, email, phone, password }
+   * @param {string} [passwordParam] 
+   */
+  async login(identifierParam, passwordParam) {
+    let rawIdentifier = null;
+    let password = null;
+
+    if (typeof identifierParam === 'object' && identifierParam !== null) {
+      rawIdentifier = identifierParam.identifier || identifierParam.email || identifierParam.phone;
+      password = identifierParam.password;
+    } else {
+      rawIdentifier = identifierParam;
+      password = passwordParam;
+    }
+
+    if (!rawIdentifier || !password) {
+      throw new Error('Identifier (email or phone) and password are required');
+    }
+
+    const parsed = parseIdentifier(rawIdentifier);
+    const user = await userRepository.findByIdentifier(parsed.value);
+
     if (!user) {
-      throw new Error('Invalid email or password');
+      throw new Error('Invalid credentials');
     }
 
     if (!user.is_active) {
       throw new Error('Your account has been deactivated. Please contact support.');
     }
 
-    // 2. Verify password hash
-    const isPasswordValid = await bcrypt.compare(password, user.password_hash);
+    const isPasswordValid = await bcrypt.compare(password.toString(), user.password_hash);
     if (!isPasswordValid) {
-      throw new Error('Invalid email or password');
+      throw new Error('Invalid credentials');
     }
 
-    // 3. Generate JWT Token with user_id and role
     const tokenPayload = {
       user_id: user.user_id,
       email: user.email,
-      role: user.role
+      role: user.role,
     };
 
     const token = jwt.sign(tokenPayload, env.JWT_SECRET, { expiresIn: '7d' });
@@ -102,13 +236,14 @@ class AuthService {
         user_id: user.user_id,
         name: user.name,
         email: user.email,
-        role: user.role
+        role: user.role,
       }
     };
   }
 
   /**
-   * Fetch authenticated user's citizen profile
+   * Get current authenticated user profile
+   * @param {number} userId 
    */
   async getProfile(userId) {
     if (!userId) {
@@ -122,7 +257,7 @@ class AuthService {
 
     return {
       success: true,
-      profile
+      user: profile,
     };
   }
 
@@ -133,7 +268,7 @@ class AuthService {
     const users = await userRepository.getAllUsers();
     return {
       success: true,
-      users
+      users,
     };
   }
 
@@ -156,7 +291,7 @@ class AuthService {
 
     return {
       success: true,
-      user
+      user,
     };
   }
 
@@ -185,7 +320,7 @@ class AuthService {
     }
 
     if (updateData.email != null && updateData.email.toString().trim() !== '') {
-      const normalizedEmail = updateData.email.toString().trim().toLowerCase();
+      const normalizedEmail = normalizeEmail(updateData.email);
       if (normalizedEmail !== existing.email.toLowerCase()) {
         const emailTaken = await userRepository.findByEmail(normalizedEmail);
         if (emailTaken) {
@@ -206,7 +341,7 @@ class AuthService {
     }
 
     if (updateData.phone != null) {
-      citizenUpdates.phone = updateData.phone.toString().trim();
+      citizenUpdates.phone = normalizePhone(updateData.phone);
     }
     if (updateData.address != null) {
       citizenUpdates.address = updateData.address.toString().trim();
@@ -222,9 +357,7 @@ class AuthService {
     }
 
     if (updateData.newPassword != null) {
-      if (updateData.newPassword.toString().length < 6) {
-        throw new Error('New password must be at least 6 characters long');
-      }
+      validatePassword(updateData.newPassword);
 
       if (requesterRole !== 'ADMIN') {
         if (!updateData.currentPassword || updateData.currentPassword.toString().trim() === '') {
@@ -257,7 +390,7 @@ class AuthService {
     const updatedUser = await userRepository.findById(targetUserId);
     return {
       success: true,
-      user: updatedUser
+      user: updatedUser,
     };
   }
 
@@ -280,7 +413,7 @@ class AuthService {
 
     return {
       success: true,
-      message: 'User account deleted successfully'
+      message: 'User account deleted successfully',
     };
   }
 }

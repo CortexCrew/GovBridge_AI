@@ -2,47 +2,83 @@ const authService = require('./auth.service');
 
 class AuthController {
   /**
-   * Controller for citizen registration
+   * Send OTP to requested email or phone for registration
+   * POST /api/auth/send-otp
    */
-  async register(req, res, next) {
+  async sendOtp(req, res, next) {
     try {
-      const result = await authService.register(req.body);
-      return res.status(201).json(result);
+      const result = await authService.sendOtp(req.body);
+      return res.status(200).json(result);
     } catch (err) {
       return res.status(400).json({
         success: false,
-        message: err.message || 'Registration failed'
+        message: err.message || 'Failed to send OTP',
       });
     }
   }
 
   /**
-   * Controller for citizen login
+   * Verify OTP and finalize citizen registration
+   * POST /api/auth/verify-otp
+   */
+  async verifyOtp(req, res, next) {
+    try {
+      const { identifier, otpCode, otp, email, phone } = req.body || {};
+      const targetId = identifier || email || phone;
+      const result = await authService.verifyOtp(targetId, otpCode || otp);
+      return res.status(201).json(result);
+    } catch (err) {
+      return res.status(400).json({
+        success: false,
+        message: err.message || 'OTP verification failed',
+      });
+    }
+  }
+
+  /**
+   * Controller for citizen registration (initiates OTP or verifies if otpCode is present)
+   * POST /api/auth/register
+   */
+  async register(req, res, next) {
+    try {
+      const result = await authService.register(req.body);
+      const statusCode = req.body && req.body.otpCode ? 201 : 200;
+      return res.status(statusCode).json(result);
+    } catch (err) {
+      return res.status(400).json({
+        success: false,
+        message: err.message || 'Registration failed',
+      });
+    }
+  }
+
+  /**
+   * Controller for citizen login (Email OR Phone + Password)
+   * POST /api/auth/login
    */
   async login(req, res, next) {
     try {
-      const { email, password } = req.body;
-      const result = await authService.login(email, password);
+      const result = await authService.login(req.body);
       return res.status(200).json(result);
     } catch (err) {
       return res.status(401).json({
         success: false,
-        message: err.message || 'Login failed'
+        message: err.message || 'Login failed',
       });
     }
   }
 
   /**
    * Controller to get currently authenticated user profile
+   * GET /api/auth/me  OR  GET /api/auth/profile
    */
   async getProfile(req, res, next) {
     try {
-      // Extract user_id from authenticated req.user (populated by authMiddleware)
       const userId = req.user && req.user.user_id;
       if (!userId) {
         return res.status(401).json({
           success: false,
-          message: 'Unauthorized. User ID missing from session.'
+          message: 'Unauthorized. User ID missing from session.',
         });
       }
 
@@ -51,7 +87,7 @@ class AuthController {
     } catch (err) {
       return res.status(400).json({
         success: false,
-        message: err.message || 'Failed to retrieve user profile'
+        message: err.message || 'Failed to retrieve user profile',
       });
     }
   }
@@ -66,7 +102,7 @@ class AuthController {
     } catch (err) {
       return res.status(400).json({
         success: false,
-        message: err.message || 'Failed to retrieve users'
+        message: err.message || 'Failed to retrieve users',
       });
     }
   }
@@ -83,7 +119,7 @@ class AuthController {
       if (!targetUserId || Number.isNaN(targetUserId)) {
         return res.status(400).json({
           success: false,
-          message: 'A valid user ID is required.'
+          message: 'A valid user ID is required.',
         });
       }
 
@@ -92,7 +128,7 @@ class AuthController {
     } catch (err) {
       return res.status(403).json({
         success: false,
-        message: err.message || 'Failed to retrieve user'
+        message: err.message || 'Failed to retrieve user',
       });
     }
   }
@@ -110,7 +146,7 @@ class AuthController {
     } catch (err) {
       return res.status(400).json({
         success: false,
-        message: err.message || 'Failed to update profile'
+        message: err.message || 'Failed to update profile',
       });
     }
   }
@@ -127,7 +163,7 @@ class AuthController {
       if (!targetUserId || Number.isNaN(targetUserId)) {
         return res.status(400).json({
           success: false,
-          message: 'A valid user ID is required.'
+          message: 'A valid user ID is required.',
         });
       }
 
@@ -136,7 +172,7 @@ class AuthController {
     } catch (err) {
       return res.status(403).json({
         success: false,
-        message: err.message || 'Failed to update user'
+        message: err.message || 'Failed to update user',
       });
     }
   }
@@ -154,7 +190,7 @@ class AuthController {
     } catch (err) {
       return res.status(403).json({
         success: false,
-        message: err.message || 'Failed to delete account'
+        message: err.message || 'Failed to delete account',
       });
     }
   }
@@ -171,7 +207,7 @@ class AuthController {
       if (!targetUserId || Number.isNaN(targetUserId)) {
         return res.status(400).json({
           success: false,
-          message: 'A valid user ID is required.'
+          message: 'A valid user ID is required.',
         });
       }
 
@@ -180,7 +216,7 @@ class AuthController {
     } catch (err) {
       return res.status(403).json({
         success: false,
-        message: err.message || 'Failed to delete user'
+        message: err.message || 'Failed to delete user',
       });
     }
   }

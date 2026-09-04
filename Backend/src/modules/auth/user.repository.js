@@ -105,6 +105,36 @@ class UserRepository {
   }
 
   /**
+   * Find a user by citizen phone number
+   * @param {string} phone 
+   * @returns {Promise<Object|null>} User record or null
+   */
+  async findByPhone(phone) {
+    const queryText = `
+      SELECT u.user_id, u.name, u.email, u.password_hash, u.role, u.is_active, u.created_at, u.updated_at, c.phone
+      FROM users u
+      INNER JOIN citizens c ON u.user_id = c.user_id
+      WHERE REGEXP_REPLACE(c.phone, '\\D', '', 'g') = REGEXP_REPLACE($1, '\\D', '', 'g');
+    `;
+    const result = await db.query(queryText, [String(phone).trim()]);
+    return result.rows[0] || null;
+  }
+
+  /**
+   * Find user by either email or phone number
+   * @param {string} identifier 
+   * @returns {Promise<Object|null>} User record or null
+   */
+  async findByIdentifier(identifier) {
+    if (!identifier) return null;
+    const str = String(identifier).trim();
+    if (str.includes('@')) {
+      return await this.findByEmail(str);
+    }
+    return await this.findByPhone(str);
+  }
+
+  /**
    * Find citizen profile details by user_id
    * @param {number} userId 
    * @returns {Promise<Object|null>} Combined user + citizen data or null

@@ -1,11 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Landmark } from 'lucide-react';
+import './App.css';
 import Navbar from './components/Navbar';
-import CitizenPortal from './components/CitizenPortal';
-import OfficerPortal from './components/OfficerPortal';
 import AuthModal from './components/AuthModal';
 import ApplicationModal from './components/ApplicationModal';
 import ComplaintModal from './components/ComplaintModal';
 import UserProfileModal from './components/UserProfileModal';
+import { LandingPage, InfoPage, UnauthorizedPage } from './components/PublicPages';
+import { CitizenPages, OfficerPages } from './components/PortalPages';
 import { apiRequest } from './services/api';
 
 export default function App() {
@@ -17,6 +19,7 @@ export default function App() {
   const [selectedService, setSelectedService] = useState(null);
   const [isComplaintModalOpen, setIsComplaintModalOpen] = useState(false);
   const [toast, setToast] = useState(null);
+  const [currentPath, setCurrentPath] = useState(window.location.pathname);
 
   // Applications & Complaints State
   const [applications, setApplications] = useState([]);
@@ -29,29 +32,66 @@ export default function App() {
 
   // Check stored token and restore user profile on mount
   useEffect(() => {
+    const handleExpiredSession = () => handleLogout();
+    window.addEventListener('auth:expired', handleExpiredSession);
+
     const restoreSession = async () => {
       const token = localStorage.getItem('token');
       if (!token) return;
 
       const profileRes = await apiRequest('/auth/profile');
-      if (profileRes && profileRes.success && profileRes.data) {
-        setUser(profileRes.data);
-        if (profileRes.data.role === 'OFFICER') {
+      if (profileRes && profileRes.success && (profileRes.user || profileRes.data)) {
+        const restoredUser = profileRes.user || profileRes.data;
+        setUser(restoredUser);
+        if (restoredUser.role === 'OFFICER') {
           setActivePortal('officer');
         }
       }
     };
     restoreSession();
+    return () => window.removeEventListener('auth:expired', handleExpiredSession);
   }, []);
+
+  // Deep links should open the correct authentication experience, too.
+  useEffect(() => {
+    if (currentPath === '/login') { setAuthTab('citizen_login'); setIsAuthOpen(true); }
+    if (currentPath === '/register' || currentPath === '/verify-otp') { setAuthTab('citizen_register'); setIsAuthOpen(true); }
+    if (currentPath === '/officer/login') { setAuthTab('officer_login'); setIsAuthOpen(true); }
+  }, [currentPath]);
+
+  useEffect(() => {
+    const handlePopState = () => setCurrentPath(window.location.pathname);
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  const navigate = (path) => {
+    window.history.pushState({}, '', path);
+    setCurrentPath(path);
+  };
+
+  const displayedPortal = currentPath.startsWith('/officer') ? 'officer' : activePortal;
 
   // Open Auth Modal with specific initial tab
   const handleOpenAuth = (tab = 'citizen_login') => {
     setAuthTab(tab);
     setIsAuthOpen(true);
+    navigate(tab === 'officer_login' ? '/officer/login' : tab === 'citizen_register' ? '/register' : '/login');
+  };
+
+  const renderContent = () => {
+    if (currentPath === '/') return <LandingPage navigate={navigate} openAuth={handleOpenAuth} />;
+    if (['/services', '/about', '/help'].includes(currentPath)) return <InfoPage type={currentPath.slice(1)} navigate={navigate} openAuth={handleOpenAuth} />;
+    if (currentPath === '/unauthorized') return <UnauthorizedPage navigate={navigate} />;
+    if (currentPath.startsWith('/citizen') && user?.role === 'OFFICER') return <UnauthorizedPage navigate={navigate} />;
+    if (currentPath.startsWith('/officer') && user && user.role !== 'OFFICER' && currentPath !== '/officer/login') return <UnauthorizedPage navigate={navigate} />;
+    if (currentPath.startsWith('/citizen')) return <CitizenPages path={currentPath} user={user} applications={applications} complaints={complaints} onCertificate={(service) => { setSelectedService(service); navigate('/citizen/certificates/apply'); }} onComplaint={() => { setIsComplaintModalOpen(true); navigate('/citizen/complaints/new'); }} onProfile={() => setIsProfileOpen(true)} />;
+    if (currentPath.startsWith('/officer')) return <OfficerPages path={currentPath} officer={user} applications={applications} complaints={complaints} onReview={handleReviewCertificate} />;
+    return <div className="empty-page"><Landmark /><h1>Page not found</h1><button className="btn btn-secondary" onClick={() => navigate('/')}>Return home</button></div>;
   };
 
   // Fetch live applications & complaints from backend API
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     if (!user) return;
 
     // Applications
@@ -59,8 +99,8 @@ export default function App() {
       ? '/certificates/officer/applications' 
       : '/certificates/my-applications';
     const appRes = await apiRequest(appEndpoint);
-    if (appRes && appRes.success && Array.isArray(appRes.data)) {
-      setApplications(appRes.data);
+    if (appRes && appRes.success && Array.isArray(appRes.data || appRes.applications)) {
+      setApplications(appRes.data || appRes.applications);
     }
 
     // Complaints
@@ -69,32 +109,25 @@ export default function App() {
       : '/complaints';
     const compRes = await apiRequest(compEndpoint);
     if (compRes && (compRes.success || Array.isArray(compRes))) {
-      const list = Array.isArray(compRes) ? compRes : compRes.data || [];
-      const resolvedMap = JSON.parse(localStorage.getItem('resolved_complaints') || '{}');
-
-      const updatedList = list.map(c => {
-        const cId = c.id || c.complaint_id;
-        if (resolvedMap[cId]) {
-          return { ...c, ...resolvedMap[cId] };
-        }
-        return c;
-      });
-      setComplaints(updatedList);
+      const list = Array.isArray(compRes) ? compRes : compRes.data || compRes.complaints || [];
+      setComplaints(list);
     }
-  };
+  }, [user]);
 
   useEffect(() => {
     fetchData();
-  }, [user]);
+  }, [fetchData]);
 
   // Auth Callbacks
-  const handleAuthSuccess = (userData, token) => {
+  const handleAuthSuccess = (userData) => {
     setUser(userData);
     showToast(`Welcome, ${userData.name || 'User'}! Authenticated successfully.`);
     if (userData.role === 'OFFICER') {
       setActivePortal('officer');
+      navigate('/officer/dashboard');
     } else {
       setActivePortal('citizen');
+      navigate('/citizen/dashboard');
     }
   };
 
@@ -104,6 +137,7 @@ export default function App() {
     setApplications([]);
     setComplaints([]);
     setActivePortal('citizen');
+    navigate('/');
     showToast('Logged out successfully.');
   };
 
@@ -132,16 +166,12 @@ export default function App() {
       body: formData
     });
 
-    const newApp = {
-      id: res && (res.application_id || res.data?.id) ? (res.application_id || res.data?.id) : Math.floor(100 + Math.random() * 900),
-      certificate_type: appData.certificate_type,
-      status: 'Pending',
-      created_at: new Date().toISOString(),
-      applicant_name: user?.name || 'Citizen',
-    };
-
-    setApplications([newApp, ...applications]);
-    showToast(`Application for ${appData.certificate_type} submitted successfully!`);
+    if (res && res.success) {
+      await fetchData();
+      showToast(`Application for ${appData.certificate_type} submitted successfully!`);
+    } else {
+      throw new Error(res?.message || 'Unable to submit certificate application.');
+    }
   };
 
   // Citizen Complaint Handler (POST /api/complaints)
@@ -154,67 +184,45 @@ export default function App() {
       })
     });
 
-    const newComplaint = {
-      id: res && (res.complaint_id || res.id) ? (res.complaint_id || res.id) : Math.floor(500 + Math.random() * 900),
-      title: complaintData.title,
-      description: complaintData.description,
-      status: 'Pending',
-      created_at: new Date().toISOString()
-    };
-
-    setComplaints([newComplaint, ...complaints]);
-    showToast('Civic complaint logged successfully!');
+    if (res && res.success) {
+      await fetchData();
+      showToast('Civic complaint logged successfully!');
+    } else {
+      throw new Error(res?.message || 'Unable to submit complaint.');
+    }
   };
 
   // Citizen Delete Complaint Handler (DELETE /api/complaints/:id)
-  const handleDeleteComplaint = async (complaintId) => {
-    await apiRequest(`/complaints/${complaintId}`, {
+  const _handleDeleteComplaint = async (complaintId) => {
+    const res = await apiRequest(`/complaints/${complaintId}`, {
       method: 'DELETE'
     });
 
-    setComplaints(complaints.filter(c => (c.id !== complaintId && c.complaint_id !== complaintId)));
-    showToast(`Complaint #${complaintId} withdrawn.`);
+    if (res && res.success) {
+      setComplaints(complaints.filter(c => (c.id !== complaintId && c.complaint_id !== complaintId)));
+      showToast(`Complaint #${complaintId} withdrawn.`);
+    } else {
+      showToast(res?.message || 'Unable to withdraw complaint.', 'error');
+    }
   };
 
   // Officer Review Handler (PATCH /api/certificates/:id/review)
   const handleReviewCertificate = async (appId, status, remarks = '') => {
-    await apiRequest(`/certificates/${appId}/review`, {
+    const res = await apiRequest(`/certificates/${appId}/review`, {
       method: 'PATCH',
       body: JSON.stringify({ status, remarks })
     });
 
-    setApplications(applications.map(app => 
-      (app.id === appId || app.application_id === appId)
-        ? { ...app, status, remarks }
-        : app
-    ));
-
-    showToast(`Application #${appId} marked as ${status}.`);
-  };
-
-  // Officer Resolve Handler
-  const handleResolveComplaint = async (complaintId, status, resolutionNotes) => {
-    await apiRequest(`/complaints/${complaintId}`, {
-      method: 'PATCH',
-      body: JSON.stringify({ status: 'RESOLVED', remarks: resolutionNotes })
-    });
-
-    const resolvedMap = JSON.parse(localStorage.getItem('resolved_complaints') || '{}');
-    resolvedMap[complaintId] = {
-      status: 'RESOLVED',
-      complaint_status: 'RESOLVED',
-      remarks: resolutionNotes,
-      resolution_notes: resolutionNotes
-    };
-    localStorage.setItem('resolved_complaints', JSON.stringify(resolvedMap));
-
-    setComplaints(complaints.map(c => 
-      Number(c.id || c.complaint_id) === Number(complaintId)
-        ? { ...c, status: 'RESOLVED', complaint_status: 'RESOLVED', remarks: resolutionNotes, resolution_notes: resolutionNotes }
-        : c
-    ));
-
-    showToast(`Complaint #${complaintId} marked as RESOLVED.`);
+    if (res && res.success) {
+      setApplications(applications.map(app =>
+        (app.id === appId || app.application_id === appId)
+          ? { ...app, status, remarks }
+          : app
+      ));
+      showToast(`Application #${appId} marked as ${status}.`);
+    } else {
+      showToast(res?.message || 'Unable to review application.', 'error');
+    }
   };
 
   return (
@@ -235,36 +243,18 @@ export default function App() {
 
       {/* Navigation */}
       <Navbar 
-        activePortal={activePortal}
+        activePortal={displayedPortal}
         setActivePortal={setActivePortal}
         user={user}
         onOpenAuth={handleOpenAuth}
         onLogout={handleLogout}
         onOpenProfile={() => setIsProfileOpen(true)}
+        onNavigate={navigate}
       />
 
       {/* Main Container */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 lg:px-8 py-8">
-        {activePortal === 'citizen' ? (
-          <CitizenPortal 
-            user={user}
-            applications={applications}
-            complaints={complaints}
-            onApplyCertificate={(service) => setSelectedService(service)}
-            onRaiseComplaint={() => setIsComplaintModalOpen(true)}
-            onDeleteComplaint={handleDeleteComplaint}
-            onOpenAuth={() => handleOpenAuth('citizen_login')}
-          />
-        ) : (
-          <OfficerPortal 
-            officer={user}
-            applications={applications}
-            complaints={complaints}
-            onReviewCertificate={handleReviewCertificate}
-            onResolveComplaint={handleResolveComplaint}
-            onOpenAuth={() => handleOpenAuth('officer_login')}
-          />
-        )}
+        {renderContent()}
       </main>
 
       {/* Footer */}
