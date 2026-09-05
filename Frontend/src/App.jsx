@@ -85,7 +85,7 @@ export default function App() {
     if (currentPath === '/unauthorized') return <UnauthorizedPage navigate={navigate} />;
     if (currentPath.startsWith('/citizen') && user?.role === 'OFFICER') return <UnauthorizedPage navigate={navigate} />;
     if (currentPath.startsWith('/officer') && user && user.role !== 'OFFICER' && currentPath !== '/officer/login') return <UnauthorizedPage navigate={navigate} />;
-    if (currentPath.startsWith('/citizen')) return <CitizenPages path={currentPath} user={user} applications={applications} complaints={complaints} onCertificate={(service) => { setSelectedService(service); navigate('/citizen/certificates/apply'); }} onComplaint={() => { setIsComplaintModalOpen(true); navigate('/citizen/complaints/new'); }} onProfile={() => setIsProfileOpen(true)} />;
+    if (currentPath.startsWith('/citizen')) return <CitizenPages path={currentPath} user={user} applications={applications} complaints={complaints} onCertificate={(service) => { setSelectedService(service); navigate('/citizen/certificates/apply'); }} onCertificates={() => navigate('/citizen/certificates')} onComplaint={() => { setIsComplaintModalOpen(true); navigate('/citizen/complaints/new'); }} onProfile={() => setIsProfileOpen(true)} />;
     if (currentPath.startsWith('/officer')) return <OfficerPages path={currentPath} officer={user} applications={applications} complaints={complaints} onReview={handleReviewCertificate} />;
     return <div className="empty-page"><Landmark /><h1>Page not found</h1><button className="btn btn-secondary" onClick={() => navigate('/')}>Return home</button></div>;
   };

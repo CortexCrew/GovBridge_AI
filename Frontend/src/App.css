@@ -1,3 +1,7 @@
+.dashboard-actions{display:flex;align-items:center;justify-content:flex-end;gap:.75rem;flex-wrap:wrap}.dashboard-actions .btn-secondary{box-shadow:0 10px 22px rgba(23,52,85,.16)}
+@media(max-width:700px){.dashboard-actions{width:100%;justify-content:flex-start}.dashboard-actions .btn{flex:1}}
+
+.portal-page>.portal-header{padding-top:2rem;padding-bottom:2.5rem}.portal-page .ai-flow{margin-bottom:1.5rem;padding:1.25rem 1.5rem;gap:1.25rem;min-height:3.5rem}.portal-page .form-callout{width:min(100%,760px);margin-top:1rem;padding:2rem}.portal-page .form-callout h2{margin-bottom:.65rem}.portal-page .form-callout p{margin-bottom:1.25rem}
 :root { --ink: #173455; --muted: #687888; --paper: #fffdf8; --cream: #f8f6f0; --line: #dfe4df; --navy: #0d416f; --saffron: #e87524; --green: #23844d; --shadow: 0 18px 45px rgba(27,54,75,.08); }
 body { background: radial-gradient(circle at 80% 8%, #fff 0, transparent 26%), var(--cream); }
 h1,h2,h3,h4,h5,h6 { font-family: Georgia, serif; letter-spacing: 0; }
