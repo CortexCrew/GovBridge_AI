@@ -23,6 +23,11 @@ router.post('/register', (req, res, next) => authController.register(req, res, n
 // @desc    Citizen login using Email OR Phone number (issues JWT token)
 // @access  Public
 router.post('/login', (req, res, next) => authController.login(req, res, next));
+router.post('/password-reset/request', (req, res, next) => authController.requestPasswordReset(req, res, next));
+router.post('/password-reset/confirm', (req, res, next) => authController.confirmPasswordReset(req, res, next));
+
+router.post('/password-change/request', authMiddleware, (req, res, next) => authController.requestPasswordChange(req, res, next));
+router.post('/password-change/confirm', authMiddleware, (req, res, next) => authController.confirmPasswordChange(req, res, next));
 
 // @route   GET /api/auth/me
 // @desc    Get current authenticated citizen profile identity

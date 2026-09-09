@@ -12,6 +12,7 @@ const {
   validateOtpCode,
 } = require('./auth.validation');
 const { sendOtpNotification, verifyOtpWithTwilio } = require('./messaging.service');
+const officerRepository = require('../officers/officer.repository');
 
 class AuthService {
   /**
@@ -239,6 +240,96 @@ class AuthService {
         role: user.role,
       }
     };
+  }
+
+  async requestPasswordChange(reqUser) {
+    const isOfficer = reqUser.role === 'OFFICER' || reqUser.officer_id != null;
+    const account = isOfficer
+      ? await officerRepository.findById(reqUser.officer_id)
+      : await userRepository.findById(reqUser.user_id);
+
+    if (!account || !account.is_active || !account.email) {
+      throw new Error('Unable to find an active account email for verification');
+    }
+
+    const otpCode = crypto.randomInt(100000, 999999).toString();
+    await otpRepository.saveOtpForPurpose(account.email, otpCode, 'password-change');
+    const delivery = await sendOtpNotification({
+      target: account.email,
+      type: 'EMAIL',
+      otpCode,
+      expiresMinutes: env.OTP_EXPIRATION_MINUTES || 5,
+    });
+
+    return {
+      success: true,
+      message: `Verification code sent via ${delivery.channel} to ${delivery.maskedTarget}`,
+      maskedTarget: delivery.maskedTarget,
+    };
+  }
+
+  async confirmPasswordChange(reqUser, otpCode, newPassword) {
+    validatePassword(newPassword);
+    const isOfficer = reqUser.role === 'OFFICER' || reqUser.officer_id != null;
+    const account = isOfficer
+      ? await officerRepository.findById(reqUser.officer_id)
+      : await userRepository.findById(reqUser.user_id);
+
+    if (!account || !account.is_active || !account.email) {
+      throw new Error('Unable to find the account for verification');
+    }
+
+    const validCode = validateOtpCode(otpCode);
+    await otpRepository.verifyOtpForPurpose(account.email, validCode, 'password-change');
+    const passwordHash = await bcrypt.hash(newPassword, 10);
+    const updated = isOfficer
+      ? await officerRepository.updatePassword(account.officer_id, passwordHash)
+      : await userRepository.updatePassword(account.user_id, passwordHash);
+
+    if (!updated) throw new Error('Password could not be updated');
+    return { success: true, message: 'Password changed successfully. Please sign in again.' };
+  }
+
+  async requestPasswordReset(identifier, role = 'CITIZEN') {
+    const email = normalizeEmail(identifier);
+    const isOfficer = role === 'OFFICER';
+    const account = isOfficer
+      ? await officerRepository.findByEmail(email)
+      : await userRepository.findByEmail(email);
+
+    if (!account || !account.is_active) {
+      throw new Error('No active account was found for that email address.');
+    }
+
+    const otpCode = crypto.randomInt(100000, 999999).toString();
+    const purpose = `password-reset-${isOfficer ? 'officer' : 'citizen'}`;
+    await otpRepository.saveOtpForPurpose(email, otpCode, purpose);
+    const delivery = await sendOtpNotification({
+      target: email,
+      type: 'EMAIL',
+      otpCode,
+      expiresMinutes: env.OTP_EXPIRATION_MINUTES || 5,
+    });
+    return { success: true, message: `Verification code sent via ${delivery.channel} to ${delivery.maskedTarget}` };
+  }
+
+  async confirmPasswordReset(identifier, role, otpCode, newPassword) {
+    const email = normalizeEmail(identifier);
+    validatePassword(newPassword);
+    const isOfficer = role === 'OFFICER';
+    const account = isOfficer
+      ? await officerRepository.findByEmail(email)
+      : await userRepository.findByEmail(email);
+    if (!account || !account.is_active) throw new Error('Account verification failed.');
+
+    const purpose = `password-reset-${isOfficer ? 'officer' : 'citizen'}`;
+    await otpRepository.verifyOtpForPurpose(email, validateOtpCode(otpCode), purpose);
+    const hash = await bcrypt.hash(newPassword, 10);
+    const updated = isOfficer
+      ? await officerRepository.updatePassword(account.officer_id, hash)
+      : await userRepository.updatePassword(account.user_id, hash);
+    if (!updated) throw new Error('Password could not be updated.');
+    return { success: true, message: 'Password changed successfully. You can now sign in.' };
   }
 
   /**

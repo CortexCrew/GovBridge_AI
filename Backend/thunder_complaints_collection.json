@@ -4,26 +4,143 @@
   "requests": [
     {
       "id": "comp-create",
-      "name": "Create Complaint",
+      "name": "1. Citizen - Create Complaint",
       "url": "{{baseUrl}}/api/complaints",
       "method": "POST",
       "headers": [
         { "key": "Content-Type", "value": "application/json" },
         { "key": "Authorization", "value": "Bearer {{authToken}}" }
       ],
-      "body": {
-        "type": "json",
-        "raw": "{\n  \"title\": \"Pothole on Main St\",\n  \"description\": \"Large pothole near the bus stop causing danger to vehicles.\"\n}"
-      }
+      "body": { "type": "json", "raw": "{\n  \"title\": \"Pothole on Main Street\",\n  \"description\": \"Large pothole near the central bus stop causing danger to vehicles and pedestrians.\"\n}" }
     },
     {
       "id": "comp-list",
-      "name": "Get My Complaints",
+      "name": "2. Citizen - Get My Complaints",
       "url": "{{baseUrl}}/api/complaints",
       "method": "GET",
+      "headers": [{ "key": "Authorization", "value": "Bearer {{authToken}}" }]
+    },
+    {
+      "id": "comp-detail",
+      "name": "3. Citizen - Complaint Details",
+      "url": "{{baseUrl}}/api/complaints/{{complaintId}}",
+      "method": "GET",
+      "headers": [{ "key": "Authorization", "value": "Bearer {{authToken}}" }]
+    },
+    {
+      "id": "comp-history",
+      "name": "4. Citizen - Complaint History",
+      "url": "{{baseUrl}}/api/complaints/{{complaintId}}/history",
+      "method": "GET",
+      "headers": [{ "key": "Authorization", "value": "Bearer {{authToken}}" }]
+    },
+    {
+      "id": "comp-assignment",
+      "name": "5. Citizen - Get Assignment",
+      "url": "{{baseUrl}}/api/complaints/{{complaintId}}/assignment",
+      "method": "GET",
+      "headers": [{ "key": "Authorization", "value": "Bearer {{authToken}}" }]
+    },
+    {
+      "id": "officer-login",
+      "name": "6. Officer - Login",
+      "url": "{{baseUrl}}/api/officer/login",
+      "method": "POST",
+      "headers": [{ "key": "Content-Type", "value": "application/json" }],
+      "body": { "type": "json", "raw": "{\n  \"email\": \"{{officerEmail}}\",\n  \"password\": \"{{officerPassword}}\"\n}" }
+    },
+    {
+      "id": "officer-list",
+      "name": "7. Officer - Department Complaints",
+      "url": "{{baseUrl}}/api/officer/complaints?status=PENDING",
+      "method": "GET",
+      "headers": [{ "key": "Authorization", "value": "Bearer {{authTokenOfficer}}" }]
+    },
+    {
+      "id": "officer-list-filters",
+      "name": "8. Officer - Filter Complaints",
+      "url": "{{baseUrl}}/api/officer/complaints?priority=HIGH&category=Road%20Infrastructure",
+      "method": "GET",
+      "headers": [{ "key": "Authorization", "value": "Bearer {{authTokenOfficer}}" }]
+    },
+    {
+      "id": "officer-detail",
+      "name": "9. Officer - Complaint Details",
+      "url": "{{baseUrl}}/api/officer/complaints/{{complaintId}}",
+      "method": "GET",
+      "headers": [{ "key": "Authorization", "value": "Bearer {{authTokenOfficer}}" }]
+    },
+    {
+      "id": "comp-assign",
+      "name": "10. Officer - Assign Complaint",
+      "url": "{{baseUrl}}/api/complaints/{{complaintId}}/assign",
+      "method": "POST",
       "headers": [
-        { "key": "Authorization", "value": "Bearer {{authToken}}" }
-      ]
+        { "key": "Content-Type", "value": "application/json" },
+        { "key": "Authorization", "value": "Bearer {{authTokenOfficer}}" }
+      ],
+      "body": { "type": "json", "raw": "{\n  \"officer_id\": {{assignedOfficerId}}\n}" }
+    },
+    {
+      "id": "comp-reassign",
+      "name": "11. Officer - Reassign Complaint",
+      "url": "{{baseUrl}}/api/complaints/{{complaintId}}/assignment",
+      "method": "PATCH",
+      "headers": [
+        { "key": "Content-Type", "value": "application/json" },
+        { "key": "Authorization", "value": "Bearer {{authTokenOfficer}}" }
+      ],
+      "body": { "type": "json", "raw": "{\n  \"officer_id\": {{replacementOfficerId}}\n}" }
+    },
+    {
+      "id": "comp-assignment-officer",
+      "name": "12. Officer - Get Assignment",
+      "url": "{{baseUrl}}/api/complaints/{{complaintId}}/assignment",
+      "method": "GET",
+      "headers": [{ "key": "Authorization", "value": "Bearer {{authTokenOfficer}}" }]
+    },
+    {
+      "id": "comp-status-progress",
+      "name": "13. Officer - Mark In Progress",
+      "url": "{{baseUrl}}/api/complaints/{{complaintId}}/status",
+      "method": "PATCH",
+      "headers": [
+        { "key": "Content-Type", "value": "application/json" },
+        { "key": "Authorization", "value": "Bearer {{authTokenOfficer}}" }
+      ],
+      "body": { "type": "json", "raw": "{\n  \"status\": \"IN_PROGRESS\",\n  \"remarks\": \"Inspection has been scheduled with the field team.\"\n}" }
+    },
+    {
+      "id": "comp-status-resolved",
+      "name": "14. Officer - Resolve Complaint",
+      "url": "{{baseUrl}}/api/complaints/{{complaintId}}/status",
+      "method": "PATCH",
+      "headers": [
+        { "key": "Content-Type", "value": "application/json" },
+        { "key": "Authorization", "value": "Bearer {{authTokenOfficer}}" }
+      ],
+      "body": { "type": "json", "raw": "{\n  \"status\": \"RESOLVED\",\n  \"remarks\": \"Pothole repaired and area inspected.\"\n}" }
+    },
+    {
+      "id": "comp-delete",
+      "name": "15. Citizen - Delete Complaint",
+      "url": "{{baseUrl}}/api/complaints/{{complaintId}}",
+      "method": "DELETE",
+      "headers": [{ "key": "Authorization", "value": "Bearer {{authToken}}" }]
+    },
+    {
+      "id": "comp-invalid-id",
+      "name": "16. Security - Invalid Complaint ID",
+      "url": "{{baseUrl}}/api/complaints/999999",
+      "method": "GET",
+      "headers": [{ "key": "Authorization", "value": "Bearer {{authToken}}" }]
+    },
+    {
+      "id": "comp-no-auth",
+      "name": "17. Security - Missing Authentication",
+      "url": "{{baseUrl}}/api/complaints",
+      "method": "GET",
+      "headers": []
     }
   ],
   "environments": [
@@ -32,7 +149,13 @@
       "name": "Local",
       "values": [
         { "key": "baseUrl", "value": "http://localhost:5000" },
-        { "key": "authToken", "value": "" }
+        { "key": "authToken", "value": "" },
+        { "key": "authTokenOfficer", "value": "" },
+        { "key": "complaintId", "value": "1" },
+        { "key": "assignedOfficerId", "value": "1" },
+        { "key": "replacementOfficerId", "value": "2" },
+        { "key": "officerEmail", "value": "officer@example.com" },
+        { "key": "officerPassword", "value": "Password123" }
       ]
     }
   ]

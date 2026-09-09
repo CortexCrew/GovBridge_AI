@@ -7,8 +7,17 @@ import ApplicationModal from './components/ApplicationModal';
 import ComplaintModal from './components/ComplaintModal';
 import UserProfileModal from './components/UserProfileModal';
 import { LandingPage, InfoPage, UnauthorizedPage } from './components/PublicPages';
-import { CitizenPages, OfficerPages } from './components/PortalPages';
+import { CitizenPages, OfficerComplaintsPage, OfficerPages } from './components/PortalPages';
 import { apiRequest } from './services/api';
+
+const getTokenPayload = (token) => {
+  try {
+    const payload = token.split('.')[1];
+    return JSON.parse(window.atob(payload.replace(/-/g, '+').replace(/_/g, '/')));
+  } catch {
+    return null;
+  }
+};
 
 export default function App() {
   const [activePortal, setActivePortal] = useState('citizen'); // 'citizen' | 'officer'
@@ -39,11 +48,15 @@ export default function App() {
       const token = localStorage.getItem('token');
       if (!token) return;
 
-      const profileRes = await apiRequest('/auth/profile');
-      if (profileRes && profileRes.success && (profileRes.user || profileRes.data)) {
-        const restoredUser = profileRes.user || profileRes.data;
+      const tokenPayload = getTokenPayload(token);
+      const isOfficer = tokenPayload?.role === 'OFFICER' || tokenPayload?.officer_id !== undefined;
+      const sessionRes = await apiRequest(isOfficer ? '/officer/dashboard' : '/auth/profile');
+      const restoredUser = isOfficer
+        ? sessionRes?.data?.officer
+        : sessionRes?.user || sessionRes?.data;
+      if (sessionRes && sessionRes.success && restoredUser) {
         setUser(restoredUser);
-        if (restoredUser.role === 'OFFICER') {
+        if (isOfficer || restoredUser.role === 'OFFICER') {
           setActivePortal('officer');
         }
       }
@@ -85,8 +98,9 @@ export default function App() {
     if (currentPath === '/unauthorized') return <UnauthorizedPage navigate={navigate} />;
     if (currentPath.startsWith('/citizen') && user?.role === 'OFFICER') return <UnauthorizedPage navigate={navigate} />;
     if (currentPath.startsWith('/officer') && user && user.role !== 'OFFICER' && currentPath !== '/officer/login') return <UnauthorizedPage navigate={navigate} />;
-    if (currentPath.startsWith('/citizen')) return <CitizenPages path={currentPath} user={user} applications={applications} complaints={complaints} onCertificate={(service) => { setSelectedService(service); navigate('/citizen/certificates/apply'); }} onCertificates={() => navigate('/citizen/certificates')} onComplaint={() => { setIsComplaintModalOpen(true); navigate('/citizen/complaints/new'); }} onProfile={() => setIsProfileOpen(true)} />;
-    if (currentPath.startsWith('/officer')) return <OfficerPages path={currentPath} officer={user} applications={applications} complaints={complaints} onReview={handleReviewCertificate} />;
+    if (currentPath.startsWith('/citizen')) return <CitizenPages path={currentPath} user={user} applications={applications} complaints={complaints} onCertificate={(service) => { setSelectedService(service); navigate('/citizen/certificates/apply'); }} onCertificates={() => navigate('/citizen/certificates')} onComplaint={() => { setIsComplaintModalOpen(true); navigate('/citizen/complaints/new'); }} onProfile={() => setIsProfileOpen(true)} onNavigate={navigate} onBack={() => { setIsComplaintModalOpen(false); navigate('/citizen/dashboard'); }} />;
+    if (currentPath === '/officer/complaints' && user?.role === 'OFFICER') return <OfficerComplaintsPage complaints={complaints} />;
+    if (currentPath.startsWith('/officer')) return <OfficerPages path={currentPath} officer={user} applications={applications} complaints={complaints} onReview={handleReviewCertificate} onNavigate={navigate} />;
     return <div className="empty-page"><Landmark /><h1>Page not found</h1><button className="btn btn-secondary" onClick={() => navigate('/')}>Return home</button></div>;
   };
 
@@ -104,9 +118,7 @@ export default function App() {
     }
 
     // Complaints
-    const compEndpoint = user.role === 'OFFICER'
-      ? '/complaints'
-      : '/complaints';
+    const compEndpoint = user.role === 'OFFICER' ? '/officer/complaints' : '/complaints';
     const compRes = await apiRequest(compEndpoint);
     if (compRes && (compRes.success || Array.isArray(compRes))) {
       const list = Array.isArray(compRes) ? compRes : compRes.data || compRes.complaints || [];
@@ -288,7 +300,7 @@ export default function App() {
 
       <ComplaintModal 
         isOpen={isComplaintModalOpen}
-        onClose={() => setIsComplaintModalOpen(false)}
+        onClose={() => { setIsComplaintModalOpen(false); if (currentPath === '/citizen/complaints/new') navigate('/citizen/dashboard'); }}
         onSubmit={handleComplaintSubmit}
       />
 

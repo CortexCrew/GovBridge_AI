@@ -44,6 +44,13 @@ export const complaintApi = {
   list: () => apiRequest('/complaints'),
   create: (payload) => apiRequest('/complaints', { method: 'POST', body: JSON.stringify(payload) }),
   remove: (id) => apiRequest(`/complaints/${id}`, { method: 'DELETE' }),
+  detail: (id) => apiRequest(`/complaints/${id}`),
+  history: (id) => apiRequest(`/complaints/${id}/history`),
+  assignment: (id) => apiRequest(`/complaints/${id}/assignment`),
+  officerList: (params = '') => apiRequest(`/officer/complaints${params ? `?${params}` : ''}`),
+  officerDetail: (id) => apiRequest(`/officer/complaints/${id}`),
+  assign: (id, officer_id) => apiRequest(`/complaints/${id}/assign`, { method: 'POST', body: JSON.stringify({ officer_id }) }),
+  updateStatus: (id, payload) => apiRequest(`/complaints/${id}/status`, { method: 'PATCH', body: JSON.stringify(payload) }),
 };
 
 export const certificateApi = {
@@ -56,6 +63,7 @@ export const certificateApi = {
 
 export const officerApi = {
   dashboard: () => apiRequest('/officer/dashboard'),
+  departmentOfficers: () => apiRequest('/officer/department-officers'),
 };
 
 export const usersApi = {

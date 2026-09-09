@@ -96,9 +96,67 @@ const deleteComplaint = async (complaintId, userId) => {
   return { complaint_id: Number(complaintId), deleted: true };
 };
 
+const getComplaintDetails = async (complaintId, user) => {
+  const complaint = user.role === 'OFFICER'
+    ? await complaintRepository.getComplaintByIdForOfficer(complaintId, user.officer_id)
+    : await complaintRepository.getComplaintByIdForCitizen(complaintId, user.user_id);
+
+  if (!complaint) {
+    const exists = await complaintRepository.complaintExists(complaintId);
+    const error = new Error(exists ? 'You are not authorized to view this complaint.' : 'Complaint not found.');
+    error.statusCode = exists ? 403 : 404;
+    throw error;
+  }
+
+  const [history, assignment] = await Promise.all([
+    complaintRepository.getComplaintHistory(complaintId),
+    complaintRepository.getAssignment(complaintId),
+  ]);
+  return { complaint, history, assignment };
+};
+
+const getComplaintHistory = async (complaintId, user) => {
+  await getComplaintDetails(complaintId, user);
+  return complaintRepository.getComplaintHistory(complaintId);
+};
+
+const assignComplaint = async (complaintId, officerId, assigningOfficerId) => {
+  const result = await complaintRepository.assignComplaint(complaintId, officerId, assigningOfficerId);
+  const errors = {
+    NOT_FOUND: [404, 'Complaint not found.'],
+    OFFICER_NOT_FOUND: [404, 'Active officer not found.'],
+    DEPARTMENT_MISMATCH: [400, 'Officer must belong to the complaint department.'],
+    FORBIDDEN: [403, 'You are not authorized to assign this complaint.'],
+  };
+  if (result.kind !== 'OK') {
+    const error = new Error(errors[result.kind][1]);
+    error.statusCode = errors[result.kind][0];
+    throw error;
+  }
+  return result.assignment;
+};
+
+const updateComplaintStatus = async (complaintId, status, remarks, officerId) => {
+  const result = await complaintRepository.updateComplaintStatus(complaintId, status, remarks, officerId);
+  if (result.kind !== 'OK') {
+    const messages = {
+      NOT_FOUND: 'Complaint not found.',
+      FORBIDDEN: 'You are not authorized to update this complaint.',
+    };
+    const error = new Error(messages[result.kind]);
+    error.statusCode = result.kind === 'NOT_FOUND' ? 404 : 403;
+    throw error;
+  }
+  return result.complaint;
+};
+
 module.exports = {
   createComplaint,
   getAllComplaints,
   deleteComplaint,
+  getComplaintDetails,
+  getComplaintHistory,
+  assignComplaint,
+  updateComplaintStatus,
 };
 

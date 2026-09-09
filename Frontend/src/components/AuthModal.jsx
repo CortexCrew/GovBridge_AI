@@ -22,6 +22,10 @@ export default function AuthModal({ isOpen, initialTab = 'citizen_login', onClos
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
+  const [resetStep, setResetStep] = useState('idle');
+  const [resetData, setResetData] = useState({ otpCode: '', newPassword: '', confirmPassword: '' });
+  const [resetExpiresSeconds, setResetExpiresSeconds] = useState(0);
+  const [resetResendSeconds, setResetResendSeconds] = useState(0);
 
   // OTP Timer State
   const [timerMetadata, setTimerMetadata] = useState(null); // { sentVia, maskedTarget, expiresInSeconds, resendAvailableInSeconds }
@@ -51,6 +55,15 @@ export default function AuthModal({ isOpen, initialTab = 'citizen_login', onClos
 
     return () => clearInterval(interval);
   }, [regStep]);
+
+  useEffect(() => {
+    if (resetStep !== 'verify') return;
+    const interval = setInterval(() => {
+      setResetExpiresSeconds(previous => Math.max(previous - 1, 0));
+      setResetResendSeconds(previous => Math.max(previous - 1, 0));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [resetStep]);
 
   if (!isOpen) return null;
 
@@ -208,6 +221,29 @@ export default function AuthModal({ isOpen, initialTab = 'citizen_login', onClos
     } else if (res && res.message) {
       setError(res.message);
     }
+  };
+
+  const requestPasswordReset = async () => {
+    setLoading(true); setError(''); setSuccessMsg('');
+    const res = await apiRequest('/auth/password-reset/request', { method: 'POST', body: JSON.stringify({ identifier: formData.identifier, role: tab === 'officer_login' ? 'OFFICER' : 'CITIZEN' }) });
+    setLoading(false);
+    if (res?.success) {
+      setResetStep('verify');
+      setResetExpiresSeconds(300);
+      setResetResendSeconds(60);
+      setSuccessMsg(res.message);
+    }
+    else setError(res?.message || 'Unable to send verification code.');
+  };
+
+  const confirmPasswordReset = async (event) => {
+    event.preventDefault();
+    if (resetData.newPassword !== resetData.confirmPassword) { setError('New passwords do not match.'); return; }
+    setLoading(true); setError(''); setSuccessMsg('');
+    const res = await apiRequest('/auth/password-reset/confirm', { method: 'POST', body: JSON.stringify({ identifier: formData.identifier, role: tab === 'officer_login' ? 'OFFICER' : 'CITIZEN', otpCode: resetData.otpCode, newPassword: resetData.newPassword }) });
+    setLoading(false);
+    if (res?.success) { setResetStep('idle'); setResetData({ otpCode: '', newPassword: '', confirmPassword: '' }); setSuccessMsg(res.message); }
+    else setError(res?.message || 'Unable to change password.');
   };
 
   const formatTimer = (secs) => {
@@ -405,7 +441,7 @@ export default function AuthModal({ isOpen, initialTab = 'citizen_login', onClos
 
         {/* --- CITIZEN & OFFICER LOGIN --- */}
         {tab !== 'citizen_register' && (
-          <form onSubmit={handleLoginSubmit} className="space-y-4">
+          resetStep === 'idle' ? <form onSubmit={handleLoginSubmit} className="space-y-4">
             <div className="space-y-1">
               <label className="text-xs font-semibold text-slate-300">
                 {tab === 'officer_login' ? 'Officer Email' : 'Email Address or Phone Number'}
@@ -450,6 +486,21 @@ export default function AuthModal({ isOpen, initialTab = 'citizen_login', onClos
               <span>{loading ? 'Authenticating...' : tab === 'officer_login' ? 'Sign In to Officer Portal' : 'Citizen Sign In'}</span>
               <ArrowRight className="w-4 h-4" />
             </button>
+            <button type="button" onClick={requestPasswordReset} disabled={loading || !formData.identifier.includes('@')} className="w-full text-xs text-slate-500 hover:text-emerald-600 disabled:opacity-50">Forgot password? Verify by email</button>
+          </form>
+          : <form onSubmit={confirmPasswordReset} className="space-y-4">
+            <div className="p-3 rounded-2xl bg-slate-900 border border-slate-800 space-y-2 text-center">
+              <p className="auth-intro">Enter the verification code sent to your email, then choose a new password.</p>
+              <div className="flex items-center justify-between text-xs text-slate-400">
+                <span>Code expires in <b className="text-amber-400 font-mono">{formatTimer(resetExpiresSeconds)}</b></span>
+                <button type="button" disabled={loading || resetResendSeconds > 0} onClick={requestPasswordReset} className="text-emerald-400 disabled:text-slate-600">{resetResendSeconds > 0 ? `Resend (${resetResendSeconds}s)` : 'Resend OTP'}</button>
+              </div>
+            </div>
+            <input required inputMode="numeric" pattern="[0-9]{6}" maxLength={6} value={resetData.otpCode} onChange={e => setResetData({ ...resetData, otpCode: e.target.value.replace(/\D/g, '') })} placeholder="6-digit OTP" className="w-full p-2.5 rounded-xl glass-input text-xs" />
+            <input required minLength={6} type="password" value={resetData.newPassword} onChange={e => setResetData({ ...resetData, newPassword: e.target.value })} placeholder="New password" className="w-full p-2.5 rounded-xl glass-input text-xs" />
+            <input required minLength={6} type="password" value={resetData.confirmPassword} onChange={e => setResetData({ ...resetData, confirmPassword: e.target.value })} placeholder="Confirm new password" className="w-full p-2.5 rounded-xl glass-input text-xs" />
+            <button type="submit" disabled={loading || resetExpiresSeconds === 0 || resetData.otpCode.length !== 6} className="w-full py-3 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-emerald-600 to-teal-600 disabled:opacity-50">{loading ? 'Changing password...' : 'Verify OTP & change password'}</button>
+            <button type="button" onClick={() => setResetStep('idle')} className="w-full text-xs text-slate-500">Back to sign in</button>
           </form>
         )}
 

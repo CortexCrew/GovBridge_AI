@@ -68,6 +68,41 @@ class AuthController {
     }
   }
 
+  async requestPasswordChange(req, res, next) {
+    try {
+      return res.status(200).json(await authService.requestPasswordChange(req.user));
+    } catch (err) {
+      return res.status(err.statusCode || 400).json({ success: false, message: err.message });
+    }
+  }
+
+  async confirmPasswordChange(req, res, next) {
+    try {
+      const { otpCode, newPassword } = req.body || {};
+      return res.status(200).json(await authService.confirmPasswordChange(req.user, otpCode, newPassword));
+    } catch (err) {
+      return res.status(err.statusCode || 400).json({ success: false, message: err.message });
+    }
+  }
+
+  async requestPasswordReset(req, res, next) {
+    try {
+      const { identifier, role } = req.body || {};
+      return res.status(200).json(await authService.requestPasswordReset(identifier, role));
+    } catch (err) {
+      return res.status(err.statusCode || 400).json({ success: false, message: err.message });
+    }
+  }
+
+  async confirmPasswordReset(req, res, next) {
+    try {
+      const { identifier, role, otpCode, newPassword } = req.body || {};
+      return res.status(200).json(await authService.confirmPasswordReset(identifier, role, otpCode, newPassword));
+    } catch (err) {
+      return res.status(err.statusCode || 400).json({ success: false, message: err.message });
+    }
+  }
+
   /**
    * Controller to get currently authenticated user profile
    * GET /api/auth/me  OR  GET /api/auth/profile

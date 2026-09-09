@@ -15,6 +15,8 @@ export default function UserProfileModal({ isOpen, user, onClose, onProfileUpdat
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
+  const [passwordStep, setPasswordStep] = useState('idle');
+  const [passwordData, setPasswordData] = useState({ otpCode: '', newPassword: '', confirmPassword: '' });
 
   useEffect(() => {
     if (user) {
@@ -71,6 +73,43 @@ export default function UserProfileModal({ isOpen, user, onClose, onProfileUpdat
     setLoading(false);
     onAccountDeleted();
     onClose();
+  };
+
+  const requestPasswordChange = async () => {
+    setLoading(true);
+    setError('');
+    setSuccessMsg('');
+    const res = await apiRequest('/auth/password-change/request', { method: 'POST' });
+    setLoading(false);
+    if (res?.success) {
+      setPasswordStep('verify');
+      setSuccessMsg(res.message || 'Verification code sent to your account email.');
+    } else {
+      setError(res?.message || 'Unable to send verification code.');
+    }
+  };
+
+  const confirmPasswordChange = async (event) => {
+    event.preventDefault();
+    if (passwordData.newPassword !== passwordData.confirmPassword) {
+      setError('New password and confirmation do not match.');
+      return;
+    }
+    setLoading(true);
+    setError('');
+    setSuccessMsg('');
+    const res = await apiRequest('/auth/password-change/confirm', {
+      method: 'POST',
+      body: JSON.stringify({ otpCode: passwordData.otpCode, newPassword: passwordData.newPassword }),
+    });
+    setLoading(false);
+    if (res?.success) {
+      setPasswordStep('idle');
+      setPasswordData({ otpCode: '', newPassword: '', confirmPassword: '' });
+      setSuccessMsg(res.message || 'Password changed successfully.');
+    } else {
+      setError(res?.message || 'Unable to change password.');
+    }
   };
 
   return (
@@ -235,6 +274,25 @@ export default function UserProfileModal({ isOpen, user, onClose, onProfileUpdat
         {/* TAB 3: Danger Zone (Delete Account) */}
         {tab === 'danger' && (
           <div className="space-y-4 text-xs">
+            <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-700 space-y-2">
+              <h4 className="font-bold text-sm">Change password</h4>
+              <p>We will send a one-time verification code to your registered email before changing your password.</p>
+              {passwordStep === 'idle' ? (
+                <button type="button" onClick={requestPasswordChange} disabled={loading} className="w-full py-2.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-semibold transition-all">
+                  {loading ? 'Sending code...' : 'Send verification code'}
+                </button>
+              ) : (
+                <form onSubmit={confirmPasswordChange} className="space-y-2">
+                  <input required inputMode="numeric" pattern="[0-9]{6}" maxLength={6} value={passwordData.otpCode} onChange={e => setPasswordData({ ...passwordData, otpCode: e.target.value.replace(/\D/g, '') })} placeholder="6-digit verification code" className="w-full p-2.5 rounded-xl glass-input text-xs" />
+                  <input required minLength={6} type="password" value={passwordData.newPassword} onChange={e => setPasswordData({ ...passwordData, newPassword: e.target.value })} placeholder="New password" className="w-full p-2.5 rounded-xl glass-input text-xs" />
+                  <input required minLength={6} type="password" value={passwordData.confirmPassword} onChange={e => setPasswordData({ ...passwordData, confirmPassword: e.target.value })} placeholder="Confirm new password" className="w-full p-2.5 rounded-xl glass-input text-xs" />
+                  <div className="flex gap-2">
+                    <button type="submit" disabled={loading} className="flex-1 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-semibold transition-all">{loading ? 'Changing...' : 'Change password'}</button>
+                    <button type="button" onClick={() => setPasswordStep('idle')} className="px-3 py-2.5 rounded-xl bg-slate-800 text-slate-300">Cancel</button>
+                  </div>
+                </form>
+              )}
+            </div>
             <div className="p-4 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-300 space-y-2">
               <h4 className="font-bold text-sm text-rose-400">Deactivate / Delete Account</h4>
               <p className="text-slate-400 leading-relaxed">

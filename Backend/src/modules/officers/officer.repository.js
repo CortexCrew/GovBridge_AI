@@ -103,6 +103,14 @@ class OfficerRepository {
     return rows[0] || null;
   }
 
+  async updatePassword(officerId, newPasswordHash) {
+    const result = await db.query(
+      'UPDATE officers SET password_hash = $1, updated_at = CURRENT_TIMESTAMP WHERE officer_id = $2',
+      [newPasswordHash, officerId]
+    );
+    return result.rowCount > 0;
+  }
+
   async findEligibleOfficersByCertificateType(certificateType) {
     const query = `
       SELECT officer_id, name, email, department_id, certificate_types, role, is_active
@@ -112,6 +120,17 @@ class OfficerRepository {
     `;
 
     const { rows } = await db.query(query, [certificateType]);
+    return rows;
+  }
+
+  async findActiveByDepartment(departmentId) {
+    const query = `
+      SELECT officer_id, name, email, department_id, role
+      FROM officers
+      WHERE department_id = $1 AND is_active = TRUE
+      ORDER BY name ASC;
+    `;
+    const { rows } = await db.query(query, [departmentId]);
     return rows;
   }
 

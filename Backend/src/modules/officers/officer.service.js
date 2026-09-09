@@ -129,6 +129,16 @@ class OfficerService {
       complaints
     };
   }
+
+  async getDepartmentOfficers(officerId) {
+    const officer = await officerRepository.findById(officerId);
+    if (!officer || !officer.is_active) {
+      const error = new Error('Officer authentication required');
+      error.statusCode = 401;
+      throw error;
+    }
+    return officerRepository.findActiveByDepartment(officer.department_id);
+  }
 }
 
 module.exports = new OfficerService();

@@ -29,6 +29,10 @@ setInterval(() => {
 }, 60 * 1000);
 
 class OtpRepository {
+  getScopedKey(identifier, purpose) {
+    return `${purpose}:${identifier.trim().toLowerCase()}`;
+  }
+
   /**
   * Reserve an OTP request with cooldown. For phone OTPs, the code is owned by MSG91.
    * @param {string} identifier 
@@ -37,6 +41,11 @@ class OtpRepository {
    */
   async saveOTP(identifier, otpCode, ttlMs = DEFAULT_TTL_MS) {
     const key = identifier.trim().toLowerCase();
+    return this.saveOtpForPurpose(key, otpCode, 'default', ttlMs);
+  }
+
+  async saveOtpForPurpose(identifier, otpCode, purpose, ttlMs = DEFAULT_TTL_MS) {
+    const key = this.getScopedKey(identifier, purpose);
     const now = Date.now();
     const existing = otpStore.get(key);
 
@@ -61,7 +70,11 @@ class OtpRepository {
    * @returns {boolean}
    */
   async verifyOTP(identifier, otpCode) {
-    const key = identifier.trim().toLowerCase();
+    return this.verifyOtpForPurpose(identifier, otpCode, 'default');
+  }
+
+  async verifyOtpForPurpose(identifier, otpCode, purpose) {
+    const key = this.getScopedKey(identifier, purpose);
     const now = Date.now();
     const data = otpStore.get(key);
 
