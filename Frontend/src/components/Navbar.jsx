@@ -1,7 +1,7 @@
 import React from 'react';
-import { Landmark, User, ShieldCheck, LogOut, Sparkles, Settings } from 'lucide-react';
+import { Landmark, User, ShieldCheck, LogOut, Sparkles, Settings, MapPin } from 'lucide-react';
 
-export default function Navbar({ activePortal, setActivePortal, user, onOpenAuth, onLogout, onOpenProfile }) {
+export default function Navbar({ activePortal, setActivePortal, user, onOpenAuth, onLogout, onOpenProfile, onNavigate }) {
   const isOfficer = user && user.role === 'OFFICER';
   const isCitizen = user && user.role !== 'OFFICER';
 
@@ -13,18 +13,18 @@ export default function Navbar({ activePortal, setActivePortal, user, onOpenAuth
         <div 
           className="flex items-center gap-3 cursor-pointer" 
           onClick={() => {
-            if (!isOfficer) setActivePortal('citizen');
+            if (!isOfficer) { setActivePortal('citizen'); onNavigate('/'); }
           }}
         >
           <div className="relative">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-600 via-teal-500 to-cyan-400 flex items-center justify-center shadow-lg shadow-emerald-500/20">
-              <Landmark className="w-5 h-5 text-slate-950" />
+            <div className="govbridge-mark" aria-hidden="true">
+              <Landmark className="mark-landmark" />
+              <MapPin className="mark-pin" />
             </div>
-            <div className="absolute -top-1 -right-1 w-3 h-3 bg-emerald-400 rounded-full animate-ping opacity-75" />
           </div>
           <div>
             <div className="flex items-center gap-1.5">
-              <span className="font-extrabold text-xl tracking-tight text-white font-heading">GovBridge</span>
+              <span className="govbridge-wordmark font-extrabold text-xl tracking-tight font-heading">GovBridge</span>
               <span className="text-xs px-1.5 py-0.5 rounded-md bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-mono font-medium flex items-center gap-1">
                 <Sparkles className="w-3 h-3" /> AI
               </span>
@@ -33,14 +33,21 @@ export default function Navbar({ activePortal, setActivePortal, user, onOpenAuth
           </div>
         </div>
 
+        <div className="hidden xl:flex items-center gap-5 text-xs font-semibold text-slate-500">
+          <button onClick={() => onNavigate('/')} className="hover:text-slate-900">Home</button>
+          <button onClick={() => onNavigate('/services')} className="hover:text-slate-900">Services</button>
+          <button onClick={() => onNavigate('/about')} className="hover:text-slate-900">About</button>
+          <button onClick={() => onNavigate('/help')} className="hover:text-slate-900">Help</button>
+        </div>
+
         {/* Role-Based Portal Switcher */}
         <div className="flex items-center gap-1 bg-slate-900/80 p-1 rounded-xl border border-slate-800">
           {!isOfficer && (
             <button
-              onClick={() => setActivePortal('citizen')}
+              onClick={() => { setActivePortal('citizen'); if (isCitizen) onNavigate('/citizen/dashboard'); }}
               className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
                 activePortal === 'citizen'
-                  ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-md shadow-emerald-900/40'
+                  ? 'portal-switch-active bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-md shadow-emerald-900/40'
                   : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
               }`}
             >
@@ -54,13 +61,14 @@ export default function Navbar({ activePortal, setActivePortal, user, onOpenAuth
               onClick={() => {
                 if (isOfficer) {
                   setActivePortal('officer');
+                  onNavigate('/officer/dashboard');
                 } else {
                   onOpenAuth('officer_login');
                 }
               }}
               className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
                 activePortal === 'officer'
-                  ? 'bg-gradient-to-r from-cyan-600 to-blue-600 text-white shadow-md shadow-cyan-900/40'
+                  ? 'portal-switch-active bg-gradient-to-r from-cyan-600 to-blue-600 text-white shadow-md shadow-cyan-900/40'
                   : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
               }`}
             >

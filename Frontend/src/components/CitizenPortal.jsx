@@ -182,7 +182,7 @@ export default function CitizenPortal({
                         {app.certificate_type}
                       </td>
                       <td className="px-4 py-3.5 text-xs text-slate-400 font-mono">
-                        {new Date(app.created_at || Date.now()).toLocaleDateString()}
+                        {new Date(app.application_date || app.created_at || Date.now()).toLocaleDateString()}
                       </td>
                       <td className="px-4 py-3.5">
                         <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold ${

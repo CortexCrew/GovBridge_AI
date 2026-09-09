@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, UploadCloud, FileText } from 'lucide-react';
+import { X, UploadCloud } from 'lucide-react';
 
 export default function ApplicationModal({ isOpen, service, user, onClose, onSubmit }) {
   const [formData, setFormData] = useState({

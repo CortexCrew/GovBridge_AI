@@ -2,15 +2,26 @@ const db = require('../../config/db');
 const env = require('../../config/env');
 
 const createComplaint = async (complaint) => {
-  const query = 'INSERT INTO complaints (title, description, status, user_id) VALUES ($1, $2, $3, $4) RETURNING *';
-  const values = [complaint.title, complaint.description, complaint.status, complaint.user_id];
-
+  const client = await db.getClient();
   try {
-    const result = await db.query(query, values);
+    await client.query('BEGIN');
+    const result = await client.query(
+      'INSERT INTO complaints (title, description, status, user_id) VALUES ($1, $2, $3, $4) RETURNING *',
+      [complaint.title, complaint.description, complaint.status, complaint.user_id]
+    );
+    await client.query(
+      `INSERT INTO complaint_history (complaint_id, status, new_status, remarks, changed_by)
+       VALUES ($1, $2, $2, $3, $4)`,
+      [result.rows[0].complaint_id, complaint.status, 'Complaint submitted', complaint.user_id]
+    );
+    await client.query('COMMIT');
     return result.rows[0];
   } catch (error) {
+    await client.query('ROLLBACK');
     console.error('Error creating complaint:', error);
     throw error;
+  } finally {
+    client.release();
   }
 };
 
@@ -147,6 +158,162 @@ const deleteComplaintById = async (complaintId) => {
   }
 };
 
+const getComplaintByIdForCitizen = async (complaintId, userId) => {
+  const query = `
+    SELECT c.*, d.department_name
+    FROM complaints c
+    LEFT JOIN departments d ON d.department_id = c.department_id
+    WHERE c.complaint_id = $1 AND c.user_id = $2;
+  `;
+  const result = await db.query(query, [complaintId, userId]);
+  return result.rows[0] || null;
+};
+
+const complaintExists = async (complaintId) => {
+  const result = await db.query('SELECT complaint_id FROM complaints WHERE complaint_id = $1', [complaintId]);
+  return result.rows.length > 0;
+};
+
+const getOfficerDepartmentId = async (officerId) => {
+  const result = await db.query(
+    'SELECT department_id FROM officers WHERE officer_id = $1 AND is_active = TRUE',
+    [officerId]
+  );
+  return result.rows[0]?.department_id ?? null;
+};
+
+const getComplaintByIdForOfficer = async (complaintId, officerId) => {
+  const query = `
+    SELECT c.*, d.department_name, u.name AS citizen_name
+    FROM complaints c
+    JOIN officers o ON o.department_id = c.department_id AND o.officer_id = $2 AND o.is_active = TRUE
+    LEFT JOIN departments d ON d.department_id = c.department_id
+    LEFT JOIN users u ON u.user_id = c.user_id
+    WHERE c.complaint_id = $1;
+  `;
+  const result = await db.query(query, [complaintId, officerId]);
+  return result.rows[0] || null;
+};
+
+const getComplaintHistory = async (complaintId) => {
+  const result = await db.query(
+    `SELECT history_id, complaint_id, status, new_status, remarks, changed_by, created_at
+     FROM complaint_history
+     WHERE complaint_id = $1
+     ORDER BY created_at ASC, history_id ASC`,
+    [complaintId]
+  );
+  return result.rows;
+};
+
+const getAssignment = async (complaintId) => {
+  const result = await db.query(
+    `SELECT ca.assignment_id, ca.complaint_id, ca.officer_id, ca.assigned_at, ca.status,
+            o.name AS officer_name, o.email AS officer_email, o.role,
+            d.department_name
+     FROM complaint_assignment ca
+     JOIN officers o ON o.officer_id = ca.officer_id
+     LEFT JOIN departments d ON d.department_id = o.department_id
+     WHERE ca.complaint_id = $1 AND ca.status = 'ACTIVE'
+     ORDER BY ca.assigned_at DESC
+     LIMIT 1`,
+    [complaintId]
+  );
+  return result.rows[0] || null;
+};
+
+const assignComplaint = async (complaintId, officerId, assigningOfficerId) => {
+  const client = await db.getClient();
+  try {
+    await client.query('BEGIN');
+    const complaintResult = await client.query(
+      'SELECT department_id FROM complaints WHERE complaint_id = $1 FOR UPDATE',
+      [complaintId]
+    );
+    if (!complaintResult.rows.length) {
+      await client.query('ROLLBACK');
+      return { kind: 'NOT_FOUND' };
+    }
+
+    const officerResult = await client.query(
+      'SELECT officer_id, department_id, is_active FROM officers WHERE officer_id = $1',
+      [officerId]
+    );
+    if (!officerResult.rows.length || !officerResult.rows[0].is_active) {
+      await client.query('ROLLBACK');
+      return { kind: 'OFFICER_NOT_FOUND' };
+    }
+    if (officerResult.rows[0].department_id !== complaintResult.rows[0].department_id) {
+      await client.query('ROLLBACK');
+      return { kind: 'DEPARTMENT_MISMATCH' };
+    }
+
+    const assigningResult = await client.query(
+      'SELECT department_id FROM officers WHERE officer_id = $1 AND is_active = TRUE',
+      [assigningOfficerId]
+    );
+    if (!assigningResult.rows.length || assigningResult.rows[0].department_id !== complaintResult.rows[0].department_id) {
+      await client.query('ROLLBACK');
+      return { kind: 'FORBIDDEN' };
+    }
+
+    await client.query(
+      "UPDATE complaint_assignment SET status = 'REASSIGNED' WHERE complaint_id = $1 AND status = 'ACTIVE'",
+      [complaintId]
+    );
+    const result = await client.query(
+      `INSERT INTO complaint_assignment (complaint_id, officer_id, status)
+       VALUES ($1, $2, 'ACTIVE')
+       RETURNING assignment_id, complaint_id, officer_id, assigned_at, status`,
+      [complaintId, officerId]
+    );
+    await client.query('COMMIT');
+    return { kind: 'OK', assignment: result.rows[0] };
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+};
+
+const updateComplaintStatus = async (complaintId, status, remarks, officerId) => {
+  const client = await db.getClient();
+  try {
+    await client.query('BEGIN');
+    const result = await client.query(
+      `SELECT c.status, c.department_id
+       FROM complaints c
+       JOIN officers o ON o.department_id = c.department_id AND o.officer_id = $2 AND o.is_active = TRUE
+       WHERE c.complaint_id = $1 FOR UPDATE`,
+      [complaintId, officerId]
+    );
+    if (!result.rows.length) {
+      const exists = await client.query('SELECT complaint_id FROM complaints WHERE complaint_id = $1', [complaintId]);
+      await client.query('ROLLBACK');
+      return { kind: exists.rows.length ? 'FORBIDDEN' : 'NOT_FOUND' };
+    }
+
+    const oldStatus = result.rows[0].status;
+    const updated = await client.query(
+      'UPDATE complaints SET status = $1, updated_at = NOW() WHERE complaint_id = $2 RETURNING *',
+      [status, complaintId]
+    );
+    await client.query(
+      `INSERT INTO complaint_history (complaint_id, status, new_status, remarks, changed_by)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [complaintId, oldStatus, status, remarks || null, officerId]
+    );
+    await client.query('COMMIT');
+    return { kind: 'OK', complaint: updated.rows[0] };
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+};
+
 const init = async () => {
   await db.query(`
     CREATE TABLE IF NOT EXISTS complaints (
@@ -172,6 +339,32 @@ const init = async () => {
     ALTER TABLE complaints
     ADD COLUMN IF NOT EXISTS department_id INTEGER REFERENCES departments(department_id) ON DELETE SET NULL;
   `);
+
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS complaint_history (
+      history_id SERIAL PRIMARY KEY,
+      complaint_id INTEGER NOT NULL REFERENCES complaints(complaint_id) ON DELETE CASCADE,
+      status VARCHAR(50) NOT NULL,
+      new_status VARCHAR(50) NOT NULL,
+      remarks TEXT,
+      changed_by INTEGER,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS idx_complaint_history_complaint_id
+      ON complaint_history (complaint_id, created_at);
+  `);
+
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS complaint_assignment (
+      assignment_id SERIAL PRIMARY KEY,
+      complaint_id INTEGER NOT NULL REFERENCES complaints(complaint_id) ON DELETE CASCADE,
+      officer_id INTEGER NOT NULL REFERENCES officers(officer_id) ON DELETE CASCADE,
+      assigned_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      status VARCHAR(30) NOT NULL DEFAULT 'ACTIVE'
+    );
+    CREATE INDEX IF NOT EXISTS idx_complaint_assignment_complaint_id
+      ON complaint_assignment (complaint_id, status);
+  `);
 };
 
 module.exports = {
@@ -183,4 +376,12 @@ module.exports = {
   updateComplaintWithAI,
   getDepartmentIdByName,
   deleteComplaintById,
+  getComplaintByIdForCitizen,
+  complaintExists,
+  getOfficerDepartmentId,
+  getComplaintByIdForOfficer,
+  getComplaintHistory,
+  getAssignment,
+  assignComplaint,
+  updateComplaintStatus,
 };

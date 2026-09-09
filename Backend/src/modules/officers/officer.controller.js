@@ -31,6 +31,17 @@ class OfficerController {
       });
     }
   }
+
+  async getDepartmentOfficers(req, res, next) {
+    try {
+      const officerId = req.user && req.user.officer_id;
+      const officers = await officerService.getDepartmentOfficers(officerId);
+      return res.status(200).json({ success: true, data: officers });
+    } catch (error) {
+      const statusCode = error.statusCode || 500;
+      return res.status(statusCode).json({ success: false, message: error.message || 'Failed to load department officers' });
+    }
+  }
 }
 
 module.exports = new OfficerController();
