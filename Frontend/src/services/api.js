@@ -61,6 +61,10 @@ export const certificateApi = {
   review: (id, payload) => apiRequest(`/certificates/${id}/review`, { method: 'PATCH', body: JSON.stringify(payload) }),
 };
 
+export const lockerApi = {
+  list: () => apiRequest('/locker/my-locker'),
+};
+
 export const officerApi = {
   dashboard: () => apiRequest('/officer/dashboard'),
   departmentOfficers: () => apiRequest('/officer/department-officers'),

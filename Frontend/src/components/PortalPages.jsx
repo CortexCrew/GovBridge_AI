@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { AlertCircle, ArrowLeft, ArrowRight, FileText, FolderLock, LayoutDashboard, Plus, Search, ShieldCheck, UserRound } from 'lucide-react';
-import { certificateApi, complaintApi, officerApi } from '../services/api';
+import { certificateApi, complaintApi, lockerApi, officerApi } from '../services/api';
 
 const count = (items, value) => items.filter(x => String(x.status || x.complaint_status || '').toUpperCase() === value).length;
 const idOf = x => x.id || x.complaint_id || x.application_id;
@@ -25,7 +25,7 @@ export function CitizenPages({ path, user, complaints, applications, onComplaint
   if (path === '/citizen/complaints') return <div className="portal-page"><PortalHeader title="My complaints" subtitle="Track the issues you have reported." icon={AlertCircle}><button className="btn btn-saffron" onClick={onComplaint}><Plus size={16}/> Raise complaint</button></PortalHeader><Filter value={query} onChange={setQuery} placeholder="Search complaints..."/>{matchedComplaints.length ? <ComplaintTable items={matchedComplaints} onSelect={setSelected}/> : <Empty icon={AlertCircle} title="You haven't raised any complaints yet." copy="When you report an issue, its department and status will appear here." action={<button className="btn btn-saffron" onClick={onComplaint}>Raise a complaint</button>}/>} {selected && <ComplaintDetail item={selected} compact onClose={() => setSelected(null)}/>}</div>;
   if (path === '/citizen/certificates/applications') return <ApplicationsPage items={matchedApps} query={query} setQuery={setQuery}/>;
   if (path.startsWith('/citizen/certificates/') && path !== '/citizen/certificates/apply') return <CertificateDetail id={path.split('/').pop()} fallback={applications.find(x => String(idOf(x)) === path.split('/').pop())}/>;
-  if (path === '/citizen/digital-locker') return <div className="portal-page"><PortalHeader title="Digital Locker" subtitle="Your important digital documents, securely organized." icon={FolderLock}/><div className="locker"><FolderLock size={58}/><h2>Your Digital Locker is empty.</h2><p>Document and locker endpoints have not been exposed by the backend yet. Approved documents will appear here when they are available.</p></div></div>;
+  if (path === '/citizen/digital-locker') return <DigitalLockerPage/>;
   if (path === '/citizen/profile') return <div className="portal-page"><PortalHeader title="My profile" subtitle="Manage your personal, contact and address information." icon={UserRound}/><button className="btn btn-secondary" onClick={onProfile}>View and edit profile</button></div>;
   return <CertificateServices onCertificate={onCertificate}/>;
 }
@@ -63,21 +63,48 @@ function ComplaintDetail({ item, complaintId: requestedId, compact, onClose }) {
   </section>;
 }
 function CertificateServices({ onCertificate }) { const types=['Income Certificate','Community Certificate','Nativity Certificate','Birth Certificate','Residence Certificate']; return <div className="portal-page"><PortalHeader title="Certificate services" subtitle="Apply for essential government certificates online." icon={FileText}/><div className="certificate-grid">{types.map(type => <article className="certificate-card" key={type}><FileText size={26}/><h3>{type}</h3><p>Submit a secure application with up to five supporting documents.</p><button onClick={() => onCertificate({ title:type })}>Apply <ArrowRight size={15}/></button></article>)}</div></div>; }
+function DigitalLockerPage() {
+  const [entries, setEntries] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    lockerApi.list().then((response) => {
+      setLoading(false);
+      if (response.success) setEntries(response.data || []);
+      else setError(response.message || 'Unable to load your Digital Locker.');
+    });
+  }, []);
+
+  return <div className="portal-page">
+    <PortalHeader title="Digital Locker" subtitle="Your approved certificates, securely organized." icon={FolderLock}/>
+    {loading ? <p className="api-note">Loading your Digital Locker...</p> : entries.length ? <div className="data-table">
+      <div className="table-head"><span>Certificate type</span><span>Application</span><span>Issued</span><span>File</span></div>
+      {entries.map(entry => <div className="table-row" key={entry.application_id}>
+        <span><b>{entry.certificate_type}</b></span>
+        <span>#{entry.application_id}</span>
+        <span>{date(entry.application_date)}</span>
+        <span>{entry.file_path.split('/').pop()}</span>
+      </div>)}
+    </div> : <Empty icon={FolderLock} title="Your Digital Locker is empty." copy={error || 'Approved certificates are stored here automatically.'}/>}
+  </div>;
+}
+
 function ApplicationsPage({ items, query, setQuery }) { return <div className="portal-page"><PortalHeader title="My certificate applications" subtitle="Track the status of your certificate requests." icon={FileText}/><Filter value={query} onChange={setQuery} placeholder="Search certificate applications..."/>{items.length ? <div className="data-table"><div className="table-head"><span>ID</span><span>Certificate type</span><span>Applied</span><span>Status</span></div>{items.map(x => <div className="table-row" key={idOf(x)}><span>#{idOf(x)}</span><span><b>{x.certificate_type}</b></span><span>{date(x.application_date || x.created_at)}</span><Status value={x.status}/></div>)}</div> : <Empty icon={FileText} title="No certificate applications yet." copy="Start an application to see it here."/>}</div>; }
 function CertificateDetail({ id, fallback }) { const [item, setItem]=useState(fallback), [error,setError]=useState(''); React.useEffect(()=>{certificateApi.detail(id).then(r=>{if(r.success) setItem(r.data || r.application); else setError('Unable to load application details.');});},[id]); return <div className="portal-page"><PortalHeader title="Application details" subtitle={`Application #${id}`} icon={FileText}/>{item ? <div className="detail-grid"><article><small>Certificate type</small><h2>{item.certificate_type}</h2><p><b>Applied:</b> {date(item.application_date || item.created_at)}</p><p><b>Status:</b> <Status value={item.status}/></p></article><article><small>Review</small><p>{item.remarks || 'No officer remarks yet.'}</p><p className="api-note">Documents are displayed when returned by the existing application-details API.</p></article></div> : <Empty icon={FileText} title="Loading application" copy={error || 'Retrieving the current application details...'}/>}</div>; }
 
-export function OfficerComplaintsPage({ complaints }) {
+export function OfficerComplaintsPage({ complaints, officer }) {
   const [selected, setSelected] = useState(null);
   const [status, setStatus] = useState('');
   const [priority, setPriority] = useState('');
   const [category, setCategory] = useState('');
   const categories = [...new Set(complaints.map(item => item.category).filter(Boolean))];
   const filtered = complaints.filter(item => (!status || String(item.status).toUpperCase() === status) && (!priority || String(item.priority).toUpperCase() === priority) && (!category || item.category === category));
-  if (selected) return <OfficerComplaintDetail id={selected} onBack={() => setSelected(null)} />;
+  if (selected) return <OfficerComplaintDetail id={selected} officer={officer} onBack={() => setSelected(null)} />;
   return <div className="portal-page officer-page"><PortalHeader title="Department complaints" subtitle="Complaints routed to your department." icon={AlertCircle}/>{complaints.length ? <><div className="complaint-filters"><SelectFilter label="Status" value={status} onChange={setStatus} options={['PENDING', 'IN_PROGRESS', 'ESCALATED', 'RESOLVED', 'CLOSED']}/><SelectFilter label="Priority" value={priority} onChange={setPriority} options={['LOW', 'MEDIUM', 'HIGH']}/><SelectFilter label="Category" value={category} onChange={setCategory} options={categories}/></div>{filtered.length ? <ComplaintTable items={filtered} onSelect={item => setSelected(idOf(item))}/> : <Empty icon={AlertCircle} title="No matching complaints" copy="Try changing the current filters."/>}</> : <Empty icon={AlertCircle} title="No department complaints" copy="Complaints routed to your department appear here."/>}</div>;
 }
 
-function OfficerComplaintDetail({ id, onBack }) {
+function OfficerComplaintDetail({ id, officer, onBack }) {
   const [data, setData] = useState(null);
   const [departmentOfficers, setDepartmentOfficers] = useState([]);
   const [officerLoadError, setOfficerLoadError] = useState('');
@@ -104,9 +131,53 @@ function OfficerComplaintDetail({ id, onBack }) {
   if (!data) return <div className="portal-page"><PortalHeader title="Complaint details" subtitle={message || 'Loading complaint...'} icon={AlertCircle}/></div>;
   const complaint = data.complaint;
   const saveAssignment = async () => { const response = await complaintApi.assign(id, Number(officerId)); setMessage(response.success ? 'Complaint assigned successfully.' : response.message || 'Unable to assign complaint.'); if (response.success) load(); };
+  const takeComplaint = async () => { const response = await complaintApi.assign(id, officer.officer_id); setMessage(response.success ? 'You have taken this complaint.' : response.message || 'Unable to take complaint.'); if (response.success) load(); };
+  const isTakenByMe = data.assignment && String(data.assignment.officer_id) === String(officer?.officer_id);
   const saveStatus = async () => { const response = await complaintApi.updateStatus(id, { status, remarks }); setMessage(response.success ? 'Complaint status updated.' : response.message || 'Unable to update status.'); if (response.success) load(); };
   const aiAnalysisMissing = !complaint.category && !complaint.priority && !complaint.ai_summary;
-  return <div className="portal-page officer-page"><PortalHeader title="Complaint details" subtitle={`Request #${id}`} icon={AlertCircle}><button className="text-link" onClick={onBack}>Back to complaints</button></PortalHeader><div className="detail-grid"><article><small>Citizen complaint</small><h2>{complaint.title}</h2><p>{complaint.description}</p><p><b>Citizen:</b> {complaint.citizen_name || 'Citizen'}</p><p><b>Department:</b> {complaint.department_name || complaint.department || 'Not routed'}</p></article><article><small>AI analysis</small>{aiAnalysisMissing && <p className="api-note">AI analysis is unavailable for this complaint. It was saved before AI routing completed, so category, priority and summary were not stored.</p>}<p><b>Category:</b> {complaint.category || 'Not available'}</p><p><b>Priority:</b> {complaint.priority || 'Not available'}</p><p><b>Summary:</b> {complaint.ai_summary || 'Not available'}</p><p><b>Status:</b> <Status value={complaint.status}/></p></article></div><div className="detail-grid officer-actions"><article><h3>Assignment</h3><p>{data.assignment ? `Assigned to ${data.assignment.officer_name || `#${data.assignment.officer_id}`}` : 'No active assignment.'}</p>{officerLoadError && <p className="api-note">{officerLoadError}</p>}<label>Assign to officer<select value={officerId} onChange={event => setOfficerId(event.target.value)} disabled={!departmentOfficers.length}><option value="">{departmentOfficers.length ? 'Select an officer' : 'No officers available'}</option>{departmentOfficers.map(item => <option value={item.officer_id} key={item.officer_id}>{item.name} · Officer #{item.officer_id}</option>)}</select></label><button className="btn btn-secondary" onClick={saveAssignment} disabled={!officerId}>Assign officer</button></article><article><h3>Update status</h3><label>Status<select value={status} onChange={event => setStatus(event.target.value)}><option value="PENDING">Pending</option><option value="IN_PROGRESS">In progress</option><option value="ESCALATED">Escalated</option><option value="RESOLVED">Resolved</option><option value="CLOSED">Closed</option></select></label><label>Remarks<textarea value={remarks} onChange={event => setRemarks(event.target.value)} rows="3" placeholder="Record what was checked, changed or communicated to the citizen." /></label><button className="btn btn-saffron" onClick={saveStatus}>Save status</button></article></div>{data.history?.length ? <div className="status-timeline">{data.history.map(event => <span className="active" key={event.history_id}>{event.new_status}<small>{event.remarks || ''}</small></span>)}</div> : <p className="api-note">No history recorded.</p>}{message && <p className="api-note">{message}</p>}</div>;
+  return <div className="portal-page officer-page"><PortalHeader title="Complaint details" subtitle={`Request #${id}`} icon={AlertCircle}><button className="text-link" onClick={onBack}>Back to complaints</button></PortalHeader><div className="detail-grid"><article><small>Citizen complaint</small><h2>{complaint.title}</h2><p>{complaint.description}</p><p><b>Citizen:</b> {complaint.citizen_name || 'Citizen'}</p><p><b>Department:</b> {complaint.department_name || complaint.department || 'Not routed'}</p></article><article><small>AI analysis</small>{aiAnalysisMissing && <p className="api-note">AI analysis is unavailable for this complaint. It was saved before AI routing completed, so category, priority and summary were not stored.</p>}<p><b>Category:</b> {complaint.category || 'Not available'}</p><p><b>Priority:</b> {complaint.priority || 'Not available'}</p><p><b>Summary:</b> {complaint.ai_summary || 'Not available'}</p><p><b>Status:</b> <Status value={complaint.status}/></p></article></div><div className="detail-grid officer-actions"><article><h3>Assignment</h3><p>{data.assignment ? `Assigned to ${data.assignment.officer_name || `#${data.assignment.officer_id}`}` : 'No active assignment.'}</p>{officerLoadError && <p className="api-note">{officerLoadError}</p>}{!isTakenByMe && officer?.officer_id && <button className="btn btn-secondary" onClick={takeComplaint}>Take this complaint</button>}<label>Assign to officer<select value={officerId} onChange={event => setOfficerId(event.target.value)} disabled={!departmentOfficers.length}><option value="">{departmentOfficers.length ? 'Select an officer' : 'No officers available'}</option>{departmentOfficers.map(item => <option value={item.officer_id} key={item.officer_id}>{item.name} · Officer #{item.officer_id}</option>)}</select></label><button className="btn btn-secondary" onClick={saveAssignment} disabled={!officerId}>Assign officer</button></article><article><h3>Update status</h3><label>Status<select value={status} onChange={event => setStatus(event.target.value)}><option value="PENDING">Pending</option><option value="IN_PROGRESS">In progress</option><option value="ESCALATED">Escalated</option><option value="RESOLVED">Resolved</option><option value="CLOSED">Closed</option></select></label><label>Remarks<textarea value={remarks} onChange={event => setRemarks(event.target.value)} rows="3" placeholder="Record what was checked, changed or communicated to the citizen." /></label><button className="btn btn-saffron" onClick={saveStatus}>Save status</button></article></div>{data.history?.length ? <div className="status-timeline">{data.history.map(event => <span className="active" key={event.history_id}>{event.new_status}<small>{event.remarks || ''}</small></span>)}</div> : <p className="api-note">No history recorded.</p>}{message && <p className="api-note">{message}</p>}</div>;
 }
 
-export function OfficerPages({ path, officer, complaints, applications, onReview, onNavigate }) { if (!officer) return <Empty icon={ShieldCheck} title="Officer authentication required" copy="Sign in with authorized department credentials."/>; if (path.startsWith('/officer/complaints/')) return <OfficerComplaintDetail id={path.split('/').pop()} onBack={() => onNavigate('/officer/complaints')}/>; if (path === '/officer/certificates') return <div className="portal-page officer-page"><PortalHeader title="Certificate applications" subtitle="Review certificate applications submitted by citizens." icon={FileText}/>{applications.length ? <div className="data-table">{applications.map(x => <div className="table-row" key={idOf(x)}><span>#{idOf(x)}</span><span><b>{x.certificate_type}</b><small>{x.citizen_name || 'Citizen'}</small></span><Status value={x.status}/><button className="text-link" onClick={() => onReview(idOf(x), 'Approved')}>Review</button></div>)}</div> : <Empty icon={FileText} title="No applications to review" copy="Applications assigned to your department appear here."/>}</div>; if (path === '/officer/complaints') return <OfficerComplaintsPage complaints={complaints}/>; return <div className="portal-page officer-page"><PortalHeader title={`Welcome, ${officer.name || 'Officer'}`} subtitle={`${officer.department_name || 'Department'} · ${officer.role || 'OFFICER'}`} icon={LayoutDashboard}/><Stats complaints={complaints} applications={applications}/><div className="two-panels"><ListPanel title="Recent department complaints" items={complaints.slice(0,4)} type="complaint" empty="No complaints routed to this department." onSelect={item => onNavigate(`/officer/complaints/${idOf(item)}`)}/><ListPanel title="Recent applications" items={applications.slice(0,4)} type="application" empty="No applications to review."/></div></div>; }
+function OfficerCertificatesPage({ applications, onReview }) {
+  const [selected, setSelected] = useState(null);
+  const [mode, setMode] = useState(null); // 'Approved' | 'Rejected'
+  const [remarks, setRemarks] = useState('');
+
+  const openReview = (app, reviewMode) => { setSelected(app); setMode(reviewMode); setRemarks(''); };
+  const submitReview = () => {
+    if (!remarks.trim()) return;
+    onReview(idOf(selected), mode, remarks);
+    setSelected(null); setMode(null); setRemarks('');
+  };
+
+  if (!applications.length) return <div className="portal-page officer-page"><PortalHeader title="Certificate applications" subtitle="Review certificate applications submitted by citizens." icon={FileText}/><Empty icon={FileText} title="No applications to review" copy="Applications assigned to your department appear here."/></div>;
+
+  return <div className="portal-page officer-page">
+    <PortalHeader title="Certificate applications" subtitle="Review certificate applications submitted by citizens." icon={FileText}/>
+    <div className="data-table">
+      <div className="table-head"><span>ID</span><span>Certificate type</span><span>Status</span><span>Actions</span></div>
+      {applications.map(x => {
+        const reviewed = String(x.status).toUpperCase() !== 'PENDING';
+        return <div className="table-row" key={idOf(x)}>
+          <span>#{idOf(x)}</span>
+          <span><b>{x.certificate_type}</b><small>{x.citizen_name || 'Citizen'}</small></span>
+          <Status value={x.status}/>
+          <span>
+            {reviewed ? <small>Reviewed</small> : <>
+              <button className="text-link" onClick={() => openReview(x, 'Approved')}>Approve</button>
+              {' '}
+              <button className="text-link" onClick={() => openReview(x, 'Rejected')}>Reject</button>
+            </>}
+          </span>
+        </div>;
+      })}
+    </div>
+    {selected && <div className="detail-modal">
+      <PortalHeader title={`${mode === 'Approved' ? 'Approve' : 'Reject'} application #${idOf(selected)}`} subtitle={selected.certificate_type} icon={FileText}><button className="text-link" onClick={() => setSelected(null)}>Close</button></PortalHeader>
+      <label>Officer remarks<textarea value={remarks} onChange={e => setRemarks(e.target.value)} rows="3" placeholder="Record verification notes for this decision."/></label>
+      <button className="btn btn-saffron" onClick={submitReview} disabled={!remarks.trim()}>Confirm {mode === 'Approved' ? 'approval' : 'rejection'}</button>
+    </div>}
+  </div>;
+}
+
+export function OfficerPages({ path, officer, complaints, applications, onReview, onNavigate }) { if (!officer) return <Empty icon={ShieldCheck} title="Officer authentication required" copy="Sign in with authorized department credentials."/>; if (path.startsWith('/officer/complaints/')) return <OfficerComplaintDetail id={path.split('/').pop()} officer={officer} onBack={() => onNavigate('/officer/complaints')}/>; if (path === '/officer/certificates') return <OfficerCertificatesPage applications={applications} onReview={onReview}/>; if (path === '/officer/complaints') return <OfficerComplaintsPage complaints={complaints} officer={officer}/>; return <div className="portal-page officer-page"><PortalHeader title={`Welcome, ${officer.name || 'Officer'}`} subtitle={`${officer.department_name || 'Department'} · ${officer.role || 'OFFICER'}`} icon={LayoutDashboard}/><Stats complaints={complaints} applications={applications}/><div className="two-panels"><ListPanel title="Recent department complaints" items={complaints.slice(0,4)} type="complaint" empty="No complaints routed to this department." onSelect={item => onNavigate(`/officer/complaints/${idOf(item)}`)}/><ListPanel title="Recent applications" items={applications.slice(0,4)} type="application" empty="No applications to review."/></div></div>; }
