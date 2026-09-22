@@ -1,6 +1,7 @@
 const fs = require('fs');
 const repository = require('./certificate.repository');
 const officerRepository = require('../officers/officer.repository');
+const lockerService = require('../locker/locker.service');
 const { ALLOWED_CERTIFICATE_TYPES } = require('./certificate.validation');
 
 class CertificateService {
@@ -167,6 +168,18 @@ class CertificateService {
       const err = new Error('Application not found');
       err.statusCode = 404;
       throw err;
+    }
+
+    if (status === 'Approved') {
+      try {
+        await lockerService.issueCertificate(
+          updatedApplication.user_id,
+          updatedApplication.application_id,
+          updatedApplication.certificate_type
+        );
+      } catch (lockerErr) {
+        console.error('Failed to issue certificate to Digital Locker:', lockerErr.message);
+      }
     }
 
     return { application: updatedApplication };

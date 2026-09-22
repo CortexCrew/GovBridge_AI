@@ -30,6 +30,11 @@ async function startServer() {
     await certificateService.init();
     console.log('Certificate module tables initialized');
 
+    // Initialize Digital Locker module table
+    const lockerService = require('./modules/locker/locker.service');
+    await lockerService.init();
+    console.log('Locker module table (DIGITAL_LOCKER) initialized');
+
     app.listen(PORT, () => {
       console.log(`Server is running on port ${PORT}`);
     });
