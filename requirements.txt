@@ -1,0 +1,56 @@
+# GovBridge AI — Consolidated Requirements
+#
+# This project has three separate services with separate dependency
+# managers (npm for Backend/Frontend, pip for ai_service). This file is a
+# single reference of everything needed to run the project — it is NOT
+# directly installable with one command. Use the install commands below
+# for each section.
+
+# ============================================================
+# System-level prerequisites
+# ============================================================
+# Node.js >= 18.x (and npm)
+# Python  >= 3.10
+# PostgreSQL >= 13 (local instance, database name: govbridge_db)
+
+# ============================================================
+# Backend (Node.js / Express) — Backend/package.json
+# Install: cd Backend && npm install
+# ============================================================
+bcryptjs==2.4.3
+cors==2.8.6
+dotenv==17.4.2
+express==5.2.1
+express-validator==7.2.1
+jsonwebtoken==9.0.2
+morgan==1.11.0
+multer==2.2.0
+nodemailer==10.0.0
+pg==8.22.0
+twilio==5.10.3
+nodemon==3.1.14              # dev dependency
+
+# ============================================================
+# Frontend (React / Vite) — Frontend/package.json
+# Install: cd Frontend && npm install
+# ============================================================
+react==19.2.8
+react-dom==19.2.8
+lucide-react==1.31.0
+vite==8.2.0                  # dev dependency
+tailwindcss==4.3.3           # dev dependency
+"@tailwindcss/vite"==4.3.3   # dev dependency
+"@vitejs/plugin-react"==6.0.4 # dev dependency
+oxlint==1.75.0                # dev dependency
+"@types/react"==19.2.17       # dev dependency
+"@types/react-dom"==19.2.3    # dev dependency
+
+# ============================================================
+# AI service (Python / FastAPI) — ai_service/requirements.txt
+# Install: cd ai_service && python -m venv .venv && .venv\Scripts\activate
+#          && pip install -r requirements.txt
+# ============================================================
+fastapi>=0.110.0
+uvicorn>=0.28.0
+google-generativeai>=0.4.0
+python-dotenv>=1.0.0
