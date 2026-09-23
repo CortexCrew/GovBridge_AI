@@ -39,4 +39,14 @@ export const CERTIFICATE_FIELDS = {
   ],
 };
 
+export const DOCUMENT_GUIDANCE = {
+  'Income Certificate': 'Aadhaar card, Ration card, Salary slip / income proof, Bank passbook (if applicable)',
+  'Community Certificate': "Aadhaar card, Parent's/Father's community certificate, School transfer certificate, Ration card",
+  'Nativity Certificate': 'Aadhaar card, Birth certificate, Ration card, Residence proof',
+  'Birth Certificate': "Hospital birth record / discharge summary, Parents' Aadhaar cards, Marriage certificate of parents (if applicable), Address proof",
+  'Residence Certificate': 'Aadhaar card, Ration card, Utility bill, Rental agreement (if not owned)',
+};
+
+export const getDocumentGuidance = (certificateType) => DOCUMENT_GUIDANCE[certificateType] || '';
+
 export const getFieldsForCertificate = (certificateType) => CERTIFICATE_FIELDS[certificateType] || [];

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X, UploadCloud } from 'lucide-react';
-import { getFieldsForCertificate } from '../config/certificateFields';
+import { getFieldsForCertificate, getDocumentGuidance } from '../config/certificateFields';
 
 export default function ApplicationModal({ isOpen, service, user, onClose, onSubmit }) {
   const [applicantName, setApplicantName] = useState('');
@@ -18,6 +18,7 @@ export default function ApplicationModal({ isOpen, service, user, onClose, onSub
   if (!isOpen || !service) return null;
 
   const fields = getFieldsForCertificate(service.title);
+  const documentGuidance = getDocumentGuidance(service.title);
   const inputClass = 'w-full p-2.5 rounded-xl glass-input text-xs';
 
   const handleFileChange = (e) => {
@@ -115,7 +116,12 @@ export default function ApplicationModal({ isOpen, service, user, onClose, onSub
 
           {/* File Upload Section */}
           <div className="space-y-1">
-            <label className="text-xs font-semibold text-slate-300">Upload Supporting Documents (Aadhaar / Ration Card / Income Proof)</label>
+            <label className="text-xs font-semibold text-slate-300">Upload Supporting Documents</label>
+            {documentGuidance && (
+              <p className="text-[11px] text-slate-400">
+                <span className="font-semibold text-slate-300">Documents expected: </span>{documentGuidance}
+              </p>
+            )}
             <div className="border-2 border-dashed border-slate-700 hover:border-emerald-500/50 rounded-2xl p-4 text-center cursor-pointer transition-colors glass-panel">
               <input
                 type="file"
