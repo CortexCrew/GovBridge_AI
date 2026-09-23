@@ -18,8 +18,9 @@ class CertificateService {
    * @param {number} userId - From JWT (req.user.user_id)
    * @param {string} certificateType
    * @param {Array} files - Multer file array
+   * @param {Object|null} applicationData - Type-specific form fields
    */
-  async applyForCertificate(userId, certificateType, files) {
+  async applyForCertificate(userId, certificateType, files, applicationData = null) {
     if (!ALLOWED_CERTIFICATE_TYPES.includes(certificateType)) {
       const err = new Error(`Invalid certificate_type. Allowed: ${ALLOWED_CERTIFICATE_TYPES.join(', ')}`);
       err.statusCode = 400;
@@ -34,7 +35,7 @@ class CertificateService {
 
     let application;
     try {
-      application = await repository.createApplication(userId, certificateType);
+      application = await repository.createApplication(userId, certificateType, applicationData);
     } catch (dbErr) {
       this._cleanUpFiles(files);
       throw dbErr;

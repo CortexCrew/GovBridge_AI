@@ -36,6 +36,31 @@ function validateApplication(req, res, next) {
     });
   }
 
+  if (req.body.application_data !== undefined && req.body.application_data !== '') {
+    let parsed = req.body.application_data;
+    if (typeof parsed === 'string') {
+      try {
+        parsed = JSON.parse(parsed);
+      } catch (e) {
+        return res.status(400).json({
+          success: false,
+          message: 'application_data must be valid JSON'
+        });
+      }
+    }
+
+    if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      return res.status(400).json({
+        success: false,
+        message: 'application_data must be a JSON object'
+      });
+    }
+
+    req.body.application_data = parsed;
+  } else {
+    req.body.application_data = null;
+  }
+
   next();
 }
 
