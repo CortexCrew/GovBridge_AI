@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { AlertCircle, ArrowLeft, ArrowRight, FileText, FolderLock, LayoutDashboard, Plus, Search, ShieldCheck, UserRound } from 'lucide-react';
 import { certificateApi, complaintApi, officerApi } from '../services/api';
+import { getFieldsForCertificate } from '../config/certificateFields';
 
 const count = (items, value) => items.filter(x => String(x.status || x.complaint_status || '').toUpperCase() === value).length;
 const idOf = x => x.id || x.complaint_id || x.application_id;
@@ -109,4 +110,47 @@ function OfficerComplaintDetail({ id, onBack }) {
   return <div className="portal-page officer-page"><PortalHeader title="Complaint details" subtitle={`Request #${id}`} icon={AlertCircle}><button className="text-link" onClick={onBack}>Back to complaints</button></PortalHeader><div className="detail-grid"><article><small>Citizen complaint</small><h2>{complaint.title}</h2><p>{complaint.description}</p><p><b>Citizen:</b> {complaint.citizen_name || 'Citizen'}</p><p><b>Department:</b> {complaint.department_name || complaint.department || 'Not routed'}</p></article><article><small>AI analysis</small>{aiAnalysisMissing && <p className="api-note">AI analysis is unavailable for this complaint. It was saved before AI routing completed, so category, priority and summary were not stored.</p>}<p><b>Category:</b> {complaint.category || 'Not available'}</p><p><b>Priority:</b> {complaint.priority || 'Not available'}</p><p><b>Summary:</b> {complaint.ai_summary || 'Not available'}</p><p><b>Status:</b> <Status value={complaint.status}/></p></article></div><div className="detail-grid officer-actions"><article><h3>Assignment</h3><p>{data.assignment ? `Assigned to ${data.assignment.officer_name || `#${data.assignment.officer_id}`}` : 'No active assignment.'}</p>{officerLoadError && <p className="api-note">{officerLoadError}</p>}<label>Assign to officer<select value={officerId} onChange={event => setOfficerId(event.target.value)} disabled={!departmentOfficers.length}><option value="">{departmentOfficers.length ? 'Select an officer' : 'No officers available'}</option>{departmentOfficers.map(item => <option value={item.officer_id} key={item.officer_id}>{item.name} · Officer #{item.officer_id}</option>)}</select></label><button className="btn btn-secondary" onClick={saveAssignment} disabled={!officerId}>Assign officer</button></article><article><h3>Update status</h3><label>Status<select value={status} onChange={event => setStatus(event.target.value)}><option value="PENDING">Pending</option><option value="IN_PROGRESS">In progress</option><option value="ESCALATED">Escalated</option><option value="RESOLVED">Resolved</option><option value="CLOSED">Closed</option></select></label><label>Remarks<textarea value={remarks} onChange={event => setRemarks(event.target.value)} rows="3" placeholder="Record what was checked, changed or communicated to the citizen." /></label><button className="btn btn-saffron" onClick={saveStatus}>Save status</button></article></div>{data.history?.length ? <div className="status-timeline">{data.history.map(event => <span className="active" key={event.history_id}>{event.new_status}<small>{event.remarks || ''}</small></span>)}</div> : <p className="api-note">No history recorded.</p>}{message && <p className="api-note">{message}</p>}</div>;
 }
 
-export function OfficerPages({ path, officer, complaints, applications, onReview, onNavigate }) { if (!officer) return <Empty icon={ShieldCheck} title="Officer authentication required" copy="Sign in with authorized department credentials."/>; if (path.startsWith('/officer/complaints/')) return <OfficerComplaintDetail id={path.split('/').pop()} onBack={() => onNavigate('/officer/complaints')}/>; if (path === '/officer/certificates') return <div className="portal-page officer-page"><PortalHeader title="Certificate applications" subtitle="Review certificate applications submitted by citizens." icon={FileText}/>{applications.length ? <div className="data-table">{applications.map(x => <div className="table-row" key={idOf(x)}><span>#{idOf(x)}</span><span><b>{x.certificate_type}</b><small>{x.citizen_name || 'Citizen'}</small></span><Status value={x.status}/><button className="text-link" onClick={() => onReview(idOf(x), 'Approved')}>Review</button></div>)}</div> : <Empty icon={FileText} title="No applications to review" copy="Applications assigned to your department appear here."/>}</div>; if (path === '/officer/complaints') return <OfficerComplaintsPage complaints={complaints}/>; return <div className="portal-page officer-page"><PortalHeader title={`Welcome, ${officer.name || 'Officer'}`} subtitle={`${officer.department_name || 'Department'} · ${officer.role || 'OFFICER'}`} icon={LayoutDashboard}/><Stats complaints={complaints} applications={applications}/><div className="two-panels"><ListPanel title="Recent department complaints" items={complaints.slice(0,4)} type="complaint" empty="No complaints routed to this department." onSelect={item => onNavigate(`/officer/complaints/${idOf(item)}`)}/><ListPanel title="Recent applications" items={applications.slice(0,4)} type="application" empty="No applications to review."/></div></div>; }
+function ApplicationDetails({ application }) {
+  const data = application.application_data;
+  if (!data || !Object.keys(data).length) return <p className="api-note">No additional details were submitted with this application.</p>;
+  const labels = Object.fromEntries(getFieldsForCertificate(application.certificate_type).map(field => [field.key, field.label]));
+  return <dl className="application-details">{Object.entries(data).map(([key, value]) => <div key={key}><dt><small>{labels[key] || key.replaceAll('_', ' ')}</small></dt><dd>{String(value)}</dd></div>)}</dl>;
+}
+
+function OfficerCertificatesPage({ applications, onReview }) {
+  const [selected, setSelected] = useState(null);
+  const [remarks, setRemarks] = useState('');
+  const isPending = app => String(app.status).toUpperCase() === 'PENDING';
+  const open = app => { setSelected(app); setRemarks(''); };
+  const close = () => { setSelected(null); setRemarks(''); };
+  const decide = async status => { if (!remarks.trim()) return; await onReview(idOf(selected), status, remarks.trim()); close(); };
+  const current = selected && applications.find(x => idOf(x) === idOf(selected)) || selected;
+
+  if (current) return <div className="portal-page officer-page">
+    <PortalHeader title="Review application" subtitle={`${current.certificate_type} · Application #${idOf(current)}`} icon={FileText} onBack={close}/>
+    <div className="detail-grid">
+      <article><small>Application</small><h2>{current.certificate_type}</h2><p><b>Applied:</b> {date(current.application_date)}</p><p><b>Status:</b> <Status value={current.status}/></p>{current.remarks && <p><b>Officer remarks:</b> {current.remarks}</p>}</article>
+      <article><small>Submitted details</small><ApplicationDetails application={current}/></article>
+    </div>
+    {isPending(current) ? <section className="detail-grid officer-actions"><article>
+      <h3>Decision</h3>
+      <label>Officer remarks<textarea value={remarks} onChange={e => setRemarks(e.target.value)} rows="3" placeholder="Record verification notes for this decision."/></label>
+      <button className="btn btn-saffron" onClick={() => decide('Approved')} disabled={!remarks.trim()}>Approve</button>
+      {' '}
+      <button className="btn btn-secondary" onClick={() => decide('Rejected')} disabled={!remarks.trim()}>Reject</button>
+    </article></section> : <p className="api-note">This application has already been reviewed.</p>}
+  </div>;
+
+  return <div className="portal-page officer-page">
+    <PortalHeader title="Certificate applications" subtitle="Review certificate applications submitted by citizens." icon={FileText}/>
+    {applications.length ? <div className="data-table">
+      <div className="table-head"><span>ID</span><span>Certificate type</span><span>Applied</span><span>Status</span><span>Action</span></div>
+      {applications.map(x => <div className="table-row" key={idOf(x)}>
+        <span>#{idOf(x)}</span><span><b>{x.certificate_type}</b></span><span>{date(x.application_date)}</span><Status value={x.status}/>
+        <button className="text-link" onClick={() => open(x)}>{isPending(x) ? 'Review' : 'View'}</button>
+      </div>)}
+    </div> : <Empty icon={FileText} title="No applications to review" copy="Applications for the certificate types you handle appear here."/>}
+  </div>;
+}
+
+export function OfficerPages({ path, officer, complaints, applications, onReview, onNavigate }) { if (!officer) return <Empty icon={ShieldCheck} title="Officer authentication required" copy="Sign in with authorized department credentials."/>; if (path.startsWith('/officer/complaints/')) return <OfficerComplaintDetail id={path.split('/').pop()} onBack={() => onNavigate('/officer/complaints')}/>; if (path === '/officer/certificates') return <OfficerCertificatesPage applications={applications} onReview={onReview}/>; if (path === '/officer/complaints') return <OfficerComplaintsPage complaints={complaints}/>; return <div className="portal-page officer-page"><PortalHeader title={`Welcome, ${officer.name || 'Officer'}`} subtitle={`${officer.department_name || 'Department'} · ${officer.role || 'OFFICER'}`} icon={LayoutDashboard}/><Stats complaints={complaints} applications={applications}/><div className="two-panels"><ListPanel title="Recent department complaints" items={complaints.slice(0,4)} type="complaint" empty="No complaints routed to this department." onSelect={item => onNavigate(`/officer/complaints/${idOf(item)}`)}/><ListPanel title="Recent applications" items={applications.slice(0,4)} type="application" empty="No applications to review." onSelect={() => onNavigate('/officer/certificates')}/></div></div>; }
