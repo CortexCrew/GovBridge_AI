@@ -168,6 +168,9 @@ export default function App() {
   const handleApplySubmit = async (appData) => {
     const formData = new FormData();
     formData.append('certificate_type', appData.certificate_type);
+    if (appData.application_data && Object.keys(appData.application_data).length > 0) {
+      formData.append('application_data', JSON.stringify(appData.application_data));
+    }
     
     if (appData.files && appData.files.length > 0) {
       appData.files.forEach(file => formData.append('documents', file));
