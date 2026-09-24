@@ -61,6 +61,35 @@ export const certificateApi = {
   review: (id, payload) => apiRequest(`/certificates/${id}/review`, { method: 'PATCH', body: JSON.stringify(payload) }),
 };
 
+export const lockerApi = {
+  list: () => apiRequest('/locker/my-locker'),
+};
+
+export async function downloadLockerFile(item) {
+  const token = localStorage.getItem('token');
+  const origin = new URL(API_BASE, window.location.href).origin;
+  try {
+    const res = await fetch(`${origin}${item.download_url}`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      return { success: false, message: data.error || data.message || 'Unable to download this file.' };
+    }
+    const url = URL.createObjectURL(await res.blob());
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = item.file_name;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+    return { success: true };
+  } catch {
+    return { success: false, message: 'The service is unavailable right now. Please try again.' };
+  }
+}
+
 export const officerApi = {
   dashboard: () => apiRequest('/officer/dashboard'),
   departmentOfficers: () => apiRequest('/officer/department-officers'),

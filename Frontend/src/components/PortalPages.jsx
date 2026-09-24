@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { AlertCircle, ArrowLeft, ArrowRight, FileText, FolderLock, LayoutDashboard, Plus, Search, ShieldCheck, UserRound } from 'lucide-react';
-import { certificateApi, complaintApi, officerApi } from '../services/api';
+import { certificateApi, complaintApi, downloadLockerFile, lockerApi, officerApi } from '../services/api';
 
 const count = (items, value) => items.filter(x => String(x.status || x.complaint_status || '').toUpperCase() === value).length;
 const idOf = x => x.id || x.complaint_id || x.application_id;
@@ -25,7 +25,7 @@ export function CitizenPages({ path, user, complaints, applications, onComplaint
   if (path === '/citizen/complaints') return <div className="portal-page"><PortalHeader title="My complaints" subtitle="Track the issues you have reported." icon={AlertCircle}><button className="btn btn-saffron" onClick={onComplaint}><Plus size={16}/> Raise complaint</button></PortalHeader><Filter value={query} onChange={setQuery} placeholder="Search complaints..."/>{matchedComplaints.length ? <ComplaintTable items={matchedComplaints} onSelect={setSelected}/> : <Empty icon={AlertCircle} title="You haven't raised any complaints yet." copy="When you report an issue, its department and status will appear here." action={<button className="btn btn-saffron" onClick={onComplaint}>Raise a complaint</button>}/>} {selected && <ComplaintDetail item={selected} compact onClose={() => setSelected(null)}/>}</div>;
   if (path === '/citizen/certificates/applications') return <ApplicationsPage items={matchedApps} query={query} setQuery={setQuery}/>;
   if (path.startsWith('/citizen/certificates/') && path !== '/citizen/certificates/apply') return <CertificateDetail id={path.split('/').pop()} fallback={applications.find(x => String(idOf(x)) === path.split('/').pop())}/>;
-  if (path === '/citizen/digital-locker') return <div className="portal-page"><PortalHeader title="Digital Locker" subtitle="Your important digital documents, securely organized." icon={FolderLock}/><div className="locker"><FolderLock size={58}/><h2>Your Digital Locker is empty.</h2><p>Document and locker endpoints have not been exposed by the backend yet. Approved documents will appear here when they are available.</p></div></div>;
+  if (path === '/citizen/digital-locker') return <DigitalLockerPage/>;
   if (path === '/citizen/profile') return <div className="portal-page"><PortalHeader title="My profile" subtitle="Manage your personal, contact and address information." icon={UserRound}/><button className="btn btn-secondary" onClick={onProfile}>View and edit profile</button></div>;
   return <CertificateServices onCertificate={onCertificate}/>;
 }
@@ -109,4 +109,97 @@ function OfficerComplaintDetail({ id, onBack }) {
   return <div className="portal-page officer-page"><PortalHeader title="Complaint details" subtitle={`Request #${id}`} icon={AlertCircle}><button className="text-link" onClick={onBack}>Back to complaints</button></PortalHeader><div className="detail-grid"><article><small>Citizen complaint</small><h2>{complaint.title}</h2><p>{complaint.description}</p><p><b>Citizen:</b> {complaint.citizen_name || 'Citizen'}</p><p><b>Department:</b> {complaint.department_name || complaint.department || 'Not routed'}</p></article><article><small>AI analysis</small>{aiAnalysisMissing && <p className="api-note">AI analysis is unavailable for this complaint. It was saved before AI routing completed, so category, priority and summary were not stored.</p>}<p><b>Category:</b> {complaint.category || 'Not available'}</p><p><b>Priority:</b> {complaint.priority || 'Not available'}</p><p><b>Summary:</b> {complaint.ai_summary || 'Not available'}</p><p><b>Status:</b> <Status value={complaint.status}/></p></article></div><div className="detail-grid officer-actions"><article><h3>Assignment</h3><p>{data.assignment ? `Assigned to ${data.assignment.officer_name || `#${data.assignment.officer_id}`}` : 'No active assignment.'}</p>{officerLoadError && <p className="api-note">{officerLoadError}</p>}<label>Assign to officer<select value={officerId} onChange={event => setOfficerId(event.target.value)} disabled={!departmentOfficers.length}><option value="">{departmentOfficers.length ? 'Select an officer' : 'No officers available'}</option>{departmentOfficers.map(item => <option value={item.officer_id} key={item.officer_id}>{item.name} · Officer #{item.officer_id}</option>)}</select></label><button className="btn btn-secondary" onClick={saveAssignment} disabled={!officerId}>Assign officer</button></article><article><h3>Update status</h3><label>Status<select value={status} onChange={event => setStatus(event.target.value)}><option value="PENDING">Pending</option><option value="IN_PROGRESS">In progress</option><option value="ESCALATED">Escalated</option><option value="RESOLVED">Resolved</option><option value="CLOSED">Closed</option></select></label><label>Remarks<textarea value={remarks} onChange={event => setRemarks(event.target.value)} rows="3" placeholder="Record what was checked, changed or communicated to the citizen." /></label><button className="btn btn-saffron" onClick={saveStatus}>Save status</button></article></div>{data.history?.length ? <div className="status-timeline">{data.history.map(event => <span className="active" key={event.history_id}>{event.new_status}<small>{event.remarks || ''}</small></span>)}</div> : <p className="api-note">No history recorded.</p>}{message && <p className="api-note">{message}</p>}</div>;
 }
 
-export function OfficerPages({ path, officer, complaints, applications, onReview, onNavigate }) { if (!officer) return <Empty icon={ShieldCheck} title="Officer authentication required" copy="Sign in with authorized department credentials."/>; if (path.startsWith('/officer/complaints/')) return <OfficerComplaintDetail id={path.split('/').pop()} onBack={() => onNavigate('/officer/complaints')}/>; if (path === '/officer/certificates') return <div className="portal-page officer-page"><PortalHeader title="Certificate applications" subtitle="Review certificate applications submitted by citizens." icon={FileText}/>{applications.length ? <div className="data-table">{applications.map(x => <div className="table-row" key={idOf(x)}><span>#{idOf(x)}</span><span><b>{x.certificate_type}</b><small>{x.citizen_name || 'Citizen'}</small></span><Status value={x.status}/><button className="text-link" onClick={() => onReview(idOf(x), 'Approved')}>Review</button></div>)}</div> : <Empty icon={FileText} title="No applications to review" copy="Applications assigned to your department appear here."/>}</div>; if (path === '/officer/complaints') return <OfficerComplaintsPage complaints={complaints}/>; return <div className="portal-page officer-page"><PortalHeader title={`Welcome, ${officer.name || 'Officer'}`} subtitle={`${officer.department_name || 'Department'} · ${officer.role || 'OFFICER'}`} icon={LayoutDashboard}/><Stats complaints={complaints} applications={applications}/><div className="two-panels"><ListPanel title="Recent department complaints" items={complaints.slice(0,4)} type="complaint" empty="No complaints routed to this department." onSelect={item => onNavigate(`/officer/complaints/${idOf(item)}`)}/><ListPanel title="Recent applications" items={applications.slice(0,4)} type="application" empty="No applications to review."/></div></div>; }
+const sourceLabel = source => source === 'issued_certificate' ? 'Issued certificate' : 'Uploaded document';
+
+function DigitalLockerPage() {
+  const [items, setItems] = useState(null);
+  const [error, setError] = useState('');
+  const [message, setMessage] = useState('');
+  const [source, setSource] = useState('');
+
+  useEffect(() => {
+    lockerApi.list().then(response => {
+      if (response.success) setItems(response.data || []);
+      else { setItems([]); setError(response.message || 'Unable to load your Digital Locker.'); }
+    });
+  }, []);
+
+  const download = async item => { const result = await downloadLockerFile(item); setMessage(result.success ? '' : result.message); };
+  const visible = (items || []).filter(item => !source || sourceLabel(item.source) === source);
+
+  return <div className="portal-page">
+    <PortalHeader title="Digital Locker" subtitle="Certificates issued to you and the documents you submitted, in one place." icon={FolderLock}/>
+    {items === null ? <p className="api-note">Loading your Digital Locker...</p>
+      : !items.length ? <Empty icon={FolderLock} title="Your Digital Locker is empty." copy={error || 'Certificates issued by officers and documents you upload with applications will appear here.'}/>
+      : <>
+        <div className="complaint-filters"><SelectFilter label="Type" value={source} onChange={setSource} options={['Issued certificate', 'Uploaded document']}/></div>
+        {message && <p className="api-note">{message}</p>}
+        {visible.length ? <div className="data-table">
+          <div className="table-head"><span>Certificate</span><span>Source</span><span>Added</span><span>File</span></div>
+          {visible.map(item => <div className="table-row" key={`${item.source}-${item.download_url}`}>
+            <span><b>{item.certificate_type}</b><small>{item.file_name} · Application #{item.application_id}</small></span>
+            <span><span className={`status ${item.source === 'issued_certificate' ? 'status-approved' : ''}`}>{sourceLabel(item.source)}</span></span>
+            <span>{date(item.uploaded_at)}</span>
+            <button className="text-link" onClick={() => download(item)}>Download</button>
+          </div>)}
+        </div> : <Empty icon={FolderLock} title="No matching files" copy="Try changing the filter."/>}
+      </>}
+  </div>;
+}
+
+const MAX_CERTIFICATE_BYTES = 5 * 1024 * 1024;
+const CERTIFICATE_FILE_TYPES = ['application/pdf', 'image/jpeg', 'image/png'];
+
+function OfficerCertificatesPage({ applications, onReview }) {
+  const [selectedId, setSelectedId] = useState(null);
+  const [remarks, setRemarks] = useState('');
+  const [file, setFile] = useState(null);
+  const [fileError, setFileError] = useState('');
+  const current = applications.find(x => idOf(x) === selectedId);
+  const isPending = app => String(app.status).toUpperCase() === 'PENDING';
+
+  const open = app => { setSelectedId(idOf(app)); setRemarks(''); setFile(null); setFileError(''); };
+  const close = () => setSelectedId(null);
+  const pickFile = event => {
+    const picked = event.target.files[0] || null;
+    setFile(null);
+    if (!picked) { setFileError(''); return; }
+    if (!CERTIFICATE_FILE_TYPES.includes(picked.type)) { setFileError('Upload a PDF, JPEG or PNG file.'); return; }
+    if (picked.size > MAX_CERTIFICATE_BYTES) { setFileError('The file must be 5MB or smaller.'); return; }
+    setFileError('');
+    setFile(picked);
+  };
+  const decide = async status => {
+    const ok = await onReview(idOf(current), status, remarks.trim(), status === 'Approved' ? file : null);
+    if (ok) close();
+  };
+
+  if (current) return <div className="portal-page officer-page">
+    <PortalHeader title="Review application" subtitle={`${current.certificate_type} · Application #${idOf(current)}`} icon={FileText} onBack={close}/>
+    <div className="detail-grid">
+      <article><small>Application</small><h2>{current.certificate_type}</h2><p><b>Applied:</b> {date(current.application_date)}</p><p><b>Status:</b> <Status value={current.status}/></p>{current.remarks && <p><b>Officer remarks:</b> {current.remarks}</p>}</article>
+    </div>
+    {isPending(current) ? <section className="detail-grid officer-actions"><article>
+      <h3>Decision</h3>
+      <label>Officer remarks<textarea value={remarks} onChange={event => setRemarks(event.target.value)} rows="3" placeholder="Record verification notes for this decision."/></label>
+      <label>Approved certificate (required to approve)<input type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" onChange={pickFile}/></label>
+      {fileError && <p className="api-note">{fileError}</p>}
+      {file && <p className="api-note">Selected: {file.name}</p>}
+      <button className="btn btn-saffron" onClick={() => decide('Approved')} disabled={!remarks.trim() || !file}>Approve and issue certificate</button>
+      {' '}
+      <button className="btn btn-secondary" onClick={() => decide('Rejected')} disabled={!remarks.trim()}>Reject</button>
+    </article></section> : <p className="api-note">This application has already been reviewed.</p>}
+  </div>;
+
+  return <div className="portal-page officer-page">
+    <PortalHeader title="Certificate applications" subtitle="Review certificate applications submitted by citizens." icon={FileText}/>
+    {applications.length ? <div className="data-table">
+      <div className="table-head"><span>ID</span><span>Certificate type</span><span>Applied</span><span>Status</span></div>
+      {applications.map(x => <button className="table-row" key={idOf(x)} onClick={() => open(x)}>
+        <span>#{idOf(x)}</span><span><b>{x.certificate_type}</b><small>{isPending(x) ? 'Awaiting review' : 'Reviewed'}</small></span><span>{date(x.application_date)}</span><Status value={x.status}/>
+      </button>)}
+    </div> : <Empty icon={FileText} title="No applications to review" copy="Applications for the certificate types you handle appear here."/>}
+  </div>;
+}
+
+export function OfficerPages({ path, officer, complaints, applications, onReview, onNavigate }) { if (!officer) return <Empty icon={ShieldCheck} title="Officer authentication required" copy="Sign in with authorized department credentials."/>; if (path.startsWith('/officer/complaints/')) return <OfficerComplaintDetail id={path.split('/').pop()} onBack={() => onNavigate('/officer/complaints')}/>; if (path === '/officer/certificates') return <OfficerCertificatesPage applications={applications} onReview={onReview}/>; if (path === '/officer/complaints') return <OfficerComplaintsPage complaints={complaints}/>; return <div className="portal-page officer-page"><PortalHeader title={`Welcome, ${officer.name || 'Officer'}`} subtitle={`${officer.department_name || 'Department'} · ${officer.role || 'OFFICER'}`} icon={LayoutDashboard}/><Stats complaints={complaints} applications={applications}/><div className="two-panels"><ListPanel title="Recent department complaints" items={complaints.slice(0,4)} type="complaint" empty="No complaints routed to this department." onSelect={item => onNavigate(`/officer/complaints/${idOf(item)}`)}/><ListPanel title="Recent applications" items={applications.slice(0,4)} type="application" empty="No applications to review." onSelect={() => onNavigate('/officer/certificates')}/></div></div>; }

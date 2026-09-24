@@ -219,10 +219,20 @@ export default function App() {
   };
 
   // Officer Review Handler (PATCH /api/certificates/:id/review)
-  const handleReviewCertificate = async (appId, status, remarks = '') => {
+  const handleReviewCertificate = async (appId, status, remarks = '', certificateFile = null) => {
+    let body;
+    if (certificateFile) {
+      body = new FormData();
+      body.append('status', status);
+      body.append('remarks', remarks);
+      body.append('certificate', certificateFile);
+    } else {
+      body = JSON.stringify({ status, remarks });
+    }
+
     const res = await apiRequest(`/certificates/${appId}/review`, {
       method: 'PATCH',
-      body: JSON.stringify({ status, remarks })
+      body
     });
 
     if (res && res.success) {
@@ -232,9 +242,11 @@ export default function App() {
           : app
       ));
       showToast(`Application #${appId} marked as ${status}.`);
-    } else {
-      showToast(res?.message || 'Unable to review application.', 'error');
+      return true;
     }
+
+    showToast(res?.error || res?.message || 'Unable to review application.', 'error');
+    return false;
   };
 
   return (
