@@ -42,10 +42,12 @@ router.get(
 );
 
 // PATCH /api/certificates/:id/review  (OFFICER only)
+// Approving requires the certificate file, sent as multipart field "certificate".
 router.patch(
   '/:id/review',
   auth,
   requireRole('OFFICER'),
+  upload.single('certificate'),
   validation.validateReview,
   controller.reviewApplication
 );

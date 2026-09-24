@@ -1,4 +1,5 @@
 const db = require('../../config/db');
+const lockerRepository = require('../locker/locker.repository');
 
 class CertificateRepository {
   /**
@@ -184,6 +185,51 @@ class CertificateRepository {
     `;
     const result = await db.query(query, [applicationId, status, remarks]);
     return result.rows[0] || null;
+  }
+
+  /**
+   * Approve an application and store the officer's certificate file in the
+   * citizen's Digital Locker in a single transaction.
+   * @param {number} applicationId
+   * @param {string|null} remarks
+   * @param {number} userId - Owner of the application
+   * @param {number} officerId - Approving officer
+   * @param {string} filePath - Uploaded certificate file
+   */
+  async approveWithCertificate(applicationId, remarks, userId, officerId, filePath) {
+    const client = await db.getClient();
+    try {
+      await client.query('BEGIN');
+      const result = await client.query(
+        `
+        UPDATE certificate_applications
+        SET status = 'Approved', remarks = $2
+        WHERE application_id = $1
+        RETURNING
+          application_id,
+          user_id,
+          certificate_type,
+          status,
+          application_date,
+          remarks;
+        `,
+        [applicationId, remarks]
+      );
+
+      if (!result.rows[0]) {
+        await client.query('ROLLBACK');
+        return null;
+      }
+
+      await lockerRepository.upsertEntry(client, userId, applicationId, filePath, officerId);
+      await client.query('COMMIT');
+      return result.rows[0];
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 }
 

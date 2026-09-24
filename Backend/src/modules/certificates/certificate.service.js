@@ -119,8 +119,18 @@ class CertificateService {
    * @param {string} status - 'Approved' | 'Rejected'
    * @param {string|null} remarks
    * @param {number|null} officerId
+   * @param {Object|null} certificateFile - Multer file; required when approving
    */
-  async reviewApplication(applicationId, status, remarks, officerId = null) {
+  async reviewApplication(applicationId, status, remarks, officerId = null, certificateFile = null) {
+    try {
+      return await this._reviewApplication(applicationId, status, remarks, officerId, certificateFile);
+    } catch (error) {
+      if (certificateFile) this._cleanUpFiles([certificateFile]);
+      throw error;
+    }
+  }
+
+  async _reviewApplication(applicationId, status, remarks, officerId, certificateFile) {
     if (!officerId) {
       const err = new Error('Officer authentication required');
       err.statusCode = 401;
@@ -157,11 +167,28 @@ class CertificateService {
       throw err;
     }
 
-    const updatedApplication = await repository.updateApplicationStatus(
-      applicationId,
-      status,
-      remarks
-    );
+    let updatedApplication;
+    if (status === 'Approved') {
+      if (!certificateFile) {
+        const err = new Error('The approved certificate file must be uploaded to approve an application');
+        err.statusCode = 400;
+        throw err;
+      }
+      updatedApplication = await repository.approveWithCertificate(
+        applicationId,
+        remarks,
+        application.user_id,
+        officerId,
+        certificateFile.path
+      );
+    } else {
+      if (certificateFile) this._cleanUpFiles([certificateFile]);
+      updatedApplication = await repository.updateApplicationStatus(
+        applicationId,
+        status,
+        remarks
+      );
+    }
 
     if (!updatedApplication) {
       const err = new Error('Application not found');

@@ -1,3 +1,5 @@
+const fs = require('fs');
+
 const ALLOWED_CERTIFICATE_TYPES = [
   'Income Certificate',
   'Community Certificate',
@@ -44,9 +46,17 @@ function validateApplication(req, res, next) {
  * Requires: status ('Approved' or 'Rejected').
  */
 function validateReview(req, res, next) {
-  const { status, officer_id } = req.body;
+  const { status } = req.body;
+
+  // A rejected request must not leave the uploaded certificate on disk.
+  const discardUpload = () => {
+    if (req.file && req.file.path && fs.existsSync(req.file.path)) {
+      fs.unlinkSync(req.file.path);
+    }
+  };
 
   if (Object.prototype.hasOwnProperty.call(req.body, 'officer_id')) {
+    discardUpload();
     return res.status(400).json({
       success: false,
       message: 'officer_id is not allowed in review requests. Use the authenticated officer JWT.'
@@ -54,6 +64,7 @@ function validateReview(req, res, next) {
   }
 
   if (!status || !ALLOWED_REVIEW_STATUSES.includes(status)) {
+    discardUpload();
     return res.status(400).json({
       success: false,
       message: `Valid status is required. Must be one of: ${ALLOWED_REVIEW_STATUSES.join(', ')}`

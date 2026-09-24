@@ -90,7 +90,8 @@ class CertificateController {
         applicationId,
         status,
         remarks || null,
-        officerId
+        officerId,
+        req.file || null
       );
 
       return res.status(200).json({
