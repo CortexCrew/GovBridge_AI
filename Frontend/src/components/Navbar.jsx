@@ -38,6 +38,7 @@ export default function Navbar({ activePortal, setActivePortal, user, onOpenAuth
           <button onClick={() => onNavigate('/services')} className="hover:text-slate-900">Services</button>
           <button onClick={() => onNavigate('/about')} className="hover:text-slate-900">About</button>
           <button onClick={() => onNavigate('/help')} className="hover:text-slate-900">Help</button>
+          {isCitizen && <button onClick={() => onNavigate('/citizen/digital-locker')} className="hover:text-slate-900">Digital Locker</button>}
         </div>
 
         {/* Role-Based Portal Switcher */}
