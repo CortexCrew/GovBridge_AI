@@ -1,28 +1,25 @@
 import React, { useState, useEffect } from 'react';
 import { X, UploadCloud } from 'lucide-react';
+import { getFieldsForCertificate, getDocumentGuidance } from '../config/certificateFields';
 
 export default function ApplicationModal({ isOpen, service, user, onClose, onSubmit }) {
-  const [formData, setFormData] = useState({
-    applicant_name: '',
-    income: '',
-    purpose: '',
-    address: ''
-  });
+  const [applicantName, setApplicantName] = useState('');
+  const [fieldValues, setFieldValues] = useState({});
   const [files, setFiles] = useState([]);
 
   useEffect(() => {
     if (isOpen) {
-      setFormData({
-        applicant_name: user?.name || '',
-        income: '',
-        purpose: '',
-        address: ''
-      });
+      setApplicantName(user?.name || '');
+      setFieldValues({});
       setFiles([]);
     }
-  }, [isOpen, user]);
+  }, [isOpen, user, service?.title]);
 
   if (!isOpen || !service) return null;
+
+  const fields = getFieldsForCertificate(service.title);
+  const documentGuidance = getDocumentGuidance(service.title);
+  const inputClass = 'w-full p-2.5 rounded-xl glass-input text-xs';
 
   const handleFileChange = (e) => {
     if (e.target.files) {
@@ -32,10 +29,16 @@ export default function ApplicationModal({ isOpen, service, user, onClose, onSub
 
   const handleSubmit = (e) => {
     e.preventDefault();
+    const applicationData = {};
+    fields.forEach((field) => {
+      const value = fieldValues[field.key];
+      if (value === undefined || value === '') return;
+      applicationData[field.key] = field.type === 'number' ? Number(value) : value;
+    });
     onSubmit({
       certificate_type: service.title,
-      department_id: service.id === 1 ? 1 : 2,
-      application_data: formData,
+      applicant_name: applicantName,
+      application_data: applicationData,
       files
     });
     onClose();
@@ -62,52 +65,63 @@ export default function ApplicationModal({ isOpen, service, user, onClose, onSub
               type="text"
               required
               placeholder="Enter your full legal name"
-              value={formData.applicant_name}
-              onChange={(e) => setFormData({ ...formData, applicant_name: e.target.value })}
-              className="w-full p-2.5 rounded-xl glass-input text-xs"
+              value={applicantName}
+              onChange={(e) => setApplicantName(e.target.value)}
+              className={inputClass}
             />
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="space-y-1">
-              <label className="text-xs font-semibold text-slate-300">Annual Income (₹)</label>
-              <input
-                type="number"
-                required
-                placeholder="e.g. 250000"
-                value={formData.income}
-                onChange={(e) => setFormData({ ...formData, income: e.target.value })}
-                className="w-full p-2.5 rounded-xl glass-input text-xs"
-              />
+          {fields.map((field) => (
+            <div className="space-y-1" key={field.key}>
+              <label className="text-xs font-semibold text-slate-300" htmlFor={`field-${field.key}`}>
+                {field.label}{!field.required && <span className="text-slate-500"> (optional)</span>}
+              </label>
+              {field.type === 'textarea' ? (
+                <textarea
+                  id={`field-${field.key}`}
+                  rows={2}
+                  required={field.required}
+                  placeholder={field.placeholder}
+                  value={fieldValues[field.key] || ''}
+                  onChange={(e) => setFieldValues({ ...fieldValues, [field.key]: e.target.value })}
+                  className={inputClass}
+                />
+              ) : field.type === 'select' ? (
+                <select
+                  id={`field-${field.key}`}
+                  required={field.required}
+                  value={fieldValues[field.key] || ''}
+                  onChange={(e) => setFieldValues({ ...fieldValues, [field.key]: e.target.value })}
+                  className={inputClass}
+                >
+                  <option value="">Select...</option>
+                  {field.options.map((option) => (
+                    <option value={option} key={option}>{option}</option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  id={`field-${field.key}`}
+                  type={field.type}
+                  min={field.type === 'number' ? 0 : undefined}
+                  required={field.required}
+                  placeholder={field.placeholder}
+                  value={fieldValues[field.key] || ''}
+                  onChange={(e) => setFieldValues({ ...fieldValues, [field.key]: e.target.value })}
+                  className={inputClass}
+                />
+              )}
             </div>
-            <div className="space-y-1">
-              <label className="text-xs font-semibold text-slate-300">Purpose of Application</label>
-              <input
-                type="text"
-                required
-                placeholder="e.g. Higher Education Scholarship"
-                value={formData.purpose}
-                onChange={(e) => setFormData({ ...formData, purpose: e.target.value })}
-                className="w-full p-2.5 rounded-xl glass-input text-xs"
-              />
-            </div>
-          </div>
-
-          <div className="space-y-1">
-            <label className="text-xs font-semibold text-slate-300">Permanent Address</label>
-            <textarea
-              rows={2}
-              required
-              placeholder="Enter complete residential address"
-              value={formData.address}
-              onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-              className="w-full p-2.5 rounded-xl glass-input text-xs"
-            />
-          </div>
+          ))}
 
           {/* File Upload Section */}
           <div className="space-y-1">
-            <label className="text-xs font-semibold text-slate-300">Upload Supporting Documents (Aadhaar / Ration Card / Income Proof)</label>
+            <label className="text-xs font-semibold text-slate-300">Upload Supporting Documents</label>
+            {documentGuidance && (
+              <p className="text-[11px] text-slate-400">
+                <span className="font-semibold text-slate-300">Documents expected: </span>{documentGuidance}
+              </p>
+            )}
             <div className="border-2 border-dashed border-slate-700 hover:border-emerald-500/50 rounded-2xl p-4 text-center cursor-pointer transition-colors glass-panel">
               <input
                 type="file"

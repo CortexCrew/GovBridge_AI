@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { AlertCircle, ArrowLeft, ArrowRight, FileText, FolderLock, LayoutDashboard, Plus, Search, ShieldCheck, UserRound } from 'lucide-react';
 import { certificateApi, complaintApi, downloadLockerFile, lockerApi, officerApi } from '../services/api';
+import { getFieldsForCertificate } from '../config/certificateFields';
 
 const count = (items, value) => items.filter(x => String(x.status || x.complaint_status || '').toUpperCase() === value).length;
 const idOf = x => x.id || x.complaint_id || x.application_id;
@@ -150,6 +151,13 @@ function DigitalLockerPage() {
 const MAX_CERTIFICATE_BYTES = 5 * 1024 * 1024;
 const CERTIFICATE_FILE_TYPES = ['application/pdf', 'image/jpeg', 'image/png'];
 
+function ApplicationDetails({ application }) {
+  const data = application.application_data;
+  if (!data || !Object.keys(data).length) return <p className="api-note">No additional details were submitted with this application.</p>;
+  const labels = Object.fromEntries(getFieldsForCertificate(application.certificate_type).map(field => [field.key, field.label]));
+  return <dl className="application-details">{Object.entries(data).map(([key, value]) => <div key={key}><dt><small>{labels[key] || key.replaceAll('_', ' ')}</small></dt><dd>{String(value)}</dd></div>)}</dl>;
+}
+
 function OfficerCertificatesPage({ applications, onReview }) {
   const [selectedId, setSelectedId] = useState(null);
   const [remarks, setRemarks] = useState('');
@@ -178,6 +186,7 @@ function OfficerCertificatesPage({ applications, onReview }) {
     <PortalHeader title="Review application" subtitle={`${current.certificate_type} · Application #${idOf(current)}`} icon={FileText} onBack={close}/>
     <div className="detail-grid">
       <article><small>Application</small><h2>{current.certificate_type}</h2><p><b>Applied:</b> {date(current.application_date)}</p><p><b>Status:</b> <Status value={current.status}/></p>{current.remarks && <p><b>Officer remarks:</b> {current.remarks}</p>}</article>
+      <article><small>Submitted details</small><ApplicationDetails application={current}/></article>
     </div>
     {isPending(current) ? <section className="detail-grid officer-actions"><article>
       <h3>Decision</h3>

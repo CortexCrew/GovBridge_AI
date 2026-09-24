@@ -24,6 +24,11 @@ class CertificateRepository {
     `);
 
     await db.query(`
+      ALTER TABLE certificate_applications
+      ADD COLUMN IF NOT EXISTS application_data JSONB;
+    `);
+
+    await db.query(`
       CREATE TABLE IF NOT EXISTS documents (
         document_id      SERIAL PRIMARY KEY,
         application_id   INTEGER NOT NULL REFERENCES certificate_applications(application_id) ON DELETE CASCADE,
@@ -39,20 +44,22 @@ class CertificateRepository {
    * Create a new certificate application for a citizen.
    * @param {number} userId
    * @param {string} certificateType
+   * @param {Object|null} applicationData - Type-specific form fields (stored as JSONB)
    */
-  async createApplication(userId, certificateType) {
+  async createApplication(userId, certificateType, applicationData = null) {
     const query = `
-      INSERT INTO certificate_applications (user_id, certificate_type)
-      VALUES ($1, $2)
+      INSERT INTO certificate_applications (user_id, certificate_type, application_data)
+      VALUES ($1, $2, $3)
       RETURNING
         application_id,
         user_id,
         certificate_type,
         status,
         application_date,
-        remarks;
+        remarks,
+        application_data;
     `;
-    const result = await db.query(query, [userId, certificateType]);
+    const result = await db.query(query, [userId, certificateType, applicationData]);
     return result.rows[0];
   }
 
@@ -91,7 +98,8 @@ class CertificateRepository {
         certificate_type,
         status,
         application_date,
-        remarks
+        remarks,
+        application_data
       FROM certificate_applications
       WHERE user_id = $1
       ORDER BY application_date DESC;
@@ -112,7 +120,8 @@ class CertificateRepository {
         certificate_type,
         status,
         application_date,
-        remarks
+        remarks,
+        application_data
       FROM certificate_applications
       WHERE application_id = $1;
     `;
@@ -128,7 +137,8 @@ class CertificateRepository {
         ca.certificate_type,
         ca.status,
         ca.application_date,
-        ca.remarks
+        ca.remarks,
+        ca.application_data
       FROM certificate_applications ca
       INNER JOIN officers o ON o.officer_id = $1
       WHERE o.is_active = TRUE
@@ -181,7 +191,8 @@ class CertificateRepository {
         certificate_type,
         status,
         application_date,
-        remarks;
+        remarks,
+        application_data;
     `;
     const result = await db.query(query, [applicationId, status, remarks]);
     return result.rows[0] || null;
@@ -211,7 +222,8 @@ class CertificateRepository {
           certificate_type,
           status,
           application_date,
-          remarks;
+          remarks,
+          application_data;
         `,
         [applicationId, remarks]
       );

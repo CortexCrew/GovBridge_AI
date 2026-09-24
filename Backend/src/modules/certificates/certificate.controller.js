@@ -7,11 +7,11 @@ class CertificateController {
    */
   async apply(req, res, next) {
     try {
-      const { certificate_type } = req.body;
+      const { certificate_type, application_data } = req.body;
       const userId = req.user.user_id;
       const files = req.files;
 
-      const result = await service.applyForCertificate(userId, certificate_type, files);
+      const result = await service.applyForCertificate(userId, certificate_type, files, application_data || null);
 
       return res.status(201).json({
         success: true,
