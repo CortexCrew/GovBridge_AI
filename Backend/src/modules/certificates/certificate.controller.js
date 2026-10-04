@@ -61,10 +61,10 @@ class CertificateController {
    */
   async getApplicationDetails(req, res, next) {
     try {
-      const userId = req.user.user_id;
+      const user = req.user;
       const applicationId = parseInt(req.params.id, 10);
 
-      const application = await service.getApplicationDetails(applicationId, userId);
+      const application = await service.getApplicationDetails(applicationId, user);
 
       return res.status(200).json({
         success: true,

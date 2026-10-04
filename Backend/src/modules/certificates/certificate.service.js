@@ -44,7 +44,7 @@ class CertificateService {
     const savedDocuments = [];
     try {
       for (const file of files) {
-        const docType = file.fieldname || 'Supporting Document';
+        const docType = file.originalname || file.fieldname || 'Supporting Document';
         const doc = await repository.saveDocument(
           application.application_id,
           userId,
@@ -89,12 +89,12 @@ class CertificateService {
 
   /**
    * Get full details of one application (including its documents).
-   * Enforces that only the owning citizen can view it.
+   * Enforces that only the owning citizen or an authorized officer can view it.
    *
    * @param {number} applicationId
-   * @param {number} userId - From JWT
+   * @param {Object} user - From JWT (req.user)
    */
-  async getApplicationDetails(applicationId, userId) {
+  async getApplicationDetails(applicationId, user) {
     const application = await repository.getApplicationById(applicationId);
 
     if (!application) {
@@ -103,7 +103,24 @@ class CertificateService {
       throw err;
     }
 
-    if (application.user_id !== userId) {
+    if (user.role === 'OFFICER') {
+      const officerId = user.officer_id || user.id;
+      const officer = officerId ? await officerRepository.findById(officerId) : null;
+      if (!officer || !officer.is_active) {
+        const err = new Error('Access denied. Inactive officer account.');
+        err.statusCode = 403;
+        throw err;
+      }
+      const rawTypes = officer.certificate_types;
+      const types = Array.isArray(rawTypes)
+        ? rawTypes
+        : (typeof rawTypes === 'string' ? rawTypes.replace(/[{}]/g, '').split(',').map(s => s.trim()).filter(Boolean) : []);
+      if (types.length > 0 && !types.includes(application.certificate_type)) {
+        const err = new Error('Access denied. You are not authorized for this certificate type.');
+        err.statusCode = 403;
+        throw err;
+      }
+    } else if (application.user_id !== user.user_id) {
       const err = new Error('Access denied. You do not own this application.');
       err.statusCode = 403;
       throw err;
@@ -158,11 +175,12 @@ class CertificateService {
       throw err;
     }
 
-    const officerCertificateTypes = Array.isArray(officer.certificate_types)
-      ? officer.certificate_types
-      : [];
+    const rawTypes = officer.certificate_types;
+    const officerCertificateTypes = Array.isArray(rawTypes)
+      ? rawTypes
+      : (typeof rawTypes === 'string' ? rawTypes.replace(/[{}]/g, '').split(',').map(s => s.trim().replace(/^"|"$/g, '')).filter(Boolean) : []);
 
-    if (!officerCertificateTypes.includes(application.certificate_type)) {
+    if (officerCertificateTypes.length > 0 && !officerCertificateTypes.includes(application.certificate_type)) {
       const err = new Error('You are not authorized to review this certificate type');
       err.statusCode = 403;
       throw err;

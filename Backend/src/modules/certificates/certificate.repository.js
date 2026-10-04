@@ -1,5 +1,35 @@
+const path = require('path');
 const db = require('../../config/db');
 const lockerRepository = require('../locker/locker.repository');
+
+function mapApplicationRow(row) {
+  if (!row) return null;
+  let docs = row.documents;
+  if (typeof docs === 'string') {
+    try {
+      docs = JSON.parse(docs);
+    } catch (e) {
+      docs = [];
+    }
+  }
+  if (!Array.isArray(docs)) {
+    docs = [];
+  }
+  return {
+    ...row,
+    documents: docs
+      .filter(doc => doc && (doc.document_id || doc.file_path || doc.file_name))
+      .map(doc => {
+        const fileName = doc.file_path ? path.basename(String(doc.file_path).split('\\').join('/')) : (doc.file_name || 'document');
+        return {
+          ...doc,
+          file_name: fileName,
+          download_url: `/uploads/${fileName}`,
+          file_url: `/uploads/${fileName}`
+        };
+      })
+  };
+}
 
 class CertificateRepository {
   /**
@@ -90,22 +120,76 @@ class CertificateRepository {
    * Get all applications submitted by a citizen.
    * @param {number} userId
    */
+  /**
+   * Get all applications submitted by a citizen.
+   * @param {number} userId
+   */
   async getApplicationsByUser(userId) {
     const query = `
       SELECT
-        application_id,
-        user_id,
-        certificate_type,
-        status,
-        application_date,
-        remarks,
-        application_data
-      FROM certificate_applications
-      WHERE user_id = $1
-      ORDER BY application_date DESC;
+        ca.application_id,
+        ca.user_id,
+        ca.certificate_type,
+        ca.status,
+        ca.application_date,
+        ca.remarks,
+        ca.application_data
+      FROM certificate_applications ca
+      WHERE ca.user_id = $1
+      ORDER BY ca.application_date DESC;
     `;
     const result = await db.query(query, [userId]);
-    return result.rows;
+    const apps = result.rows;
+    if (apps.length === 0) return [];
+
+    const appIds = apps.map(a => a.application_id);
+    const docsResult = await db.query(
+      `SELECT document_id, application_id, user_id, file_path, document_type, uploaded_at 
+       FROM documents 
+       WHERE application_id = ANY($1::int[]) 
+       ORDER BY uploaded_at ASC`,
+      [appIds]
+    );
+
+    const docsByApp = {};
+    for (const doc of docsResult.rows) {
+      const rawPath = String(doc.file_path || '').replace(/\\/g, '/');
+      const fileName = rawPath.split('/').pop() || 'document';
+      const formattedDoc = {
+        ...doc,
+        file_name: fileName,
+        download_url: `/uploads/${fileName}`,
+        file_url: `/uploads/${fileName}`
+      };
+      if (!docsByApp[doc.application_id]) {
+        docsByApp[doc.application_id] = [];
+      }
+      docsByApp[doc.application_id].push(formattedDoc);
+    }
+
+    const lockerResult = await db.query(
+      `SELECT application_id, file_path, uploaded_at, uploaded_by 
+       FROM digital_locker 
+       WHERE application_id = ANY($1::int[])`,
+      [appIds]
+    );
+    const lockerByApp = {};
+    for (const row of lockerResult.rows) {
+      const rawPath = String(row.file_path || '').replace(/\\/g, '/');
+      const fileName = rawPath.split('/').pop() || 'certificate.pdf';
+      lockerByApp[row.application_id] = {
+        file_name: fileName,
+        download_url: `/uploads/${fileName}`,
+        file_url: `/uploads/${fileName}`,
+        uploaded_at: row.uploaded_at
+      };
+    }
+
+    return apps.map(app => ({
+      ...app,
+      documents: docsByApp[app.application_id] || [],
+      issued_certificate: lockerByApp[app.application_id] || null
+    }));
   }
 
   /**
@@ -115,18 +199,64 @@ class CertificateRepository {
   async getApplicationById(applicationId) {
     const query = `
       SELECT
-        application_id,
-        user_id,
-        certificate_type,
-        status,
-        application_date,
-        remarks,
-        application_data
-      FROM certificate_applications
-      WHERE application_id = $1;
+        ca.application_id,
+        ca.user_id,
+        ca.certificate_type,
+        ca.status,
+        ca.application_date,
+        ca.remarks,
+        ca.application_data
+      FROM certificate_applications ca
+      WHERE ca.application_id = $1;
     `;
     const result = await db.query(query, [applicationId]);
-    return result.rows[0] || null;
+    if (!result.rows[0]) return null;
+    const app = result.rows[0];
+
+    const docsResult = await db.query(
+      `SELECT document_id, application_id, user_id, file_path, document_type, uploaded_at 
+       FROM documents 
+       WHERE application_id = $1 
+       ORDER BY uploaded_at ASC`,
+      [applicationId]
+    );
+
+    const documents = docsResult.rows.map(doc => {
+      const rawPath = String(doc.file_path || '').replace(/\\/g, '/');
+      const fileName = rawPath.split('/').pop() || 'document';
+      return {
+        ...doc,
+        file_name: fileName,
+        download_url: `/uploads/${fileName}`,
+        file_url: `/uploads/${fileName}`
+      };
+    });
+
+    const lockerResult = await db.query(
+      `SELECT file_path, uploaded_at, uploaded_by 
+       FROM digital_locker 
+       WHERE application_id = $1`,
+      [applicationId]
+    );
+
+    let issuedCertificate = null;
+    if (lockerResult.rows[0]) {
+      const row = lockerResult.rows[0];
+      const rawPath = String(row.file_path || '').replace(/\\/g, '/');
+      const fileName = rawPath.split('/').pop() || 'certificate.pdf';
+      issuedCertificate = {
+        file_name: fileName,
+        download_url: `/uploads/${fileName}`,
+        file_url: `/uploads/${fileName}`,
+        uploaded_at: row.uploaded_at
+      };
+    }
+
+    return {
+      ...app,
+      documents,
+      issued_certificate: issuedCertificate
+    };
   }
 
   async getApplicationsForOfficer(officerId) {
@@ -142,12 +272,66 @@ class CertificateRepository {
       FROM certificate_applications ca
       INNER JOIN officers o ON o.officer_id = $1
       WHERE o.is_active = TRUE
-      AND ca.certificate_type = ANY(COALESCE(o.certificate_types, ARRAY[]::text[]))
+      AND (
+        o.certificate_types IS NULL 
+        OR cardinality(o.certificate_types) = 0 
+        OR ca.certificate_type = ANY(o.certificate_types)
+      )
       ORDER BY ca.application_date DESC;
     `;
 
     const result = await db.query(query, [officerId]);
-    return result.rows;
+    const apps = result.rows;
+    if (apps.length === 0) return [];
+
+    const appIds = apps.map(a => a.application_id);
+    const docsResult = await db.query(
+      `SELECT document_id, application_id, user_id, file_path, document_type, uploaded_at 
+       FROM documents 
+       WHERE application_id = ANY($1::int[]) 
+       ORDER BY uploaded_at ASC`,
+      [appIds]
+    );
+
+    const docsByApp = {};
+    for (const doc of docsResult.rows) {
+      const rawPath = String(doc.file_path || '').replace(/\\/g, '/');
+      const fileName = rawPath.split('/').pop() || 'document';
+      const formattedDoc = {
+        ...doc,
+        file_name: fileName,
+        download_url: `/uploads/${fileName}`,
+        file_url: `/uploads/${fileName}`
+      };
+      if (!docsByApp[doc.application_id]) {
+        docsByApp[doc.application_id] = [];
+      }
+      docsByApp[doc.application_id].push(formattedDoc);
+    }
+
+    const lockerResult = await db.query(
+      `SELECT application_id, file_path, uploaded_at, uploaded_by 
+       FROM digital_locker 
+       WHERE application_id = ANY($1::int[])`,
+      [appIds]
+    );
+    const lockerByApp = {};
+    for (const row of lockerResult.rows) {
+      const rawPath = String(row.file_path || '').replace(/\\/g, '/');
+      const fileName = rawPath.split('/').pop() || 'certificate.pdf';
+      lockerByApp[row.application_id] = {
+        file_name: fileName,
+        download_url: `/uploads/${fileName}`,
+        file_url: `/uploads/${fileName}`,
+        uploaded_at: row.uploaded_at
+      };
+    }
+
+    return apps.map(app => ({
+      ...app,
+      documents: docsByApp[app.application_id] || [],
+      issued_certificate: lockerByApp[app.application_id] || null
+    }));
   }
 
   /**
@@ -168,7 +352,16 @@ class CertificateRepository {
       ORDER BY uploaded_at ASC;
     `;
     const result = await db.query(query, [applicationId]);
-    return result.rows;
+    return result.rows.map(row => {
+      const rawPath = String(row.file_path || '').replace(/\\/g, '/');
+      const fileName = rawPath.split('/').pop() || 'document';
+      return {
+        ...row,
+        file_name: fileName,
+        download_url: `/uploads/${fileName}`,
+        file_url: `/uploads/${fileName}`
+      };
+    });
   }
 
   /**
