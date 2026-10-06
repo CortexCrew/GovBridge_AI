@@ -93,8 +93,8 @@ export default function App() {
   };
 
   const renderContent = () => {
-    if (currentPath === '/') return <LandingPage navigate={navigate} openAuth={handleOpenAuth} />;
-    if (['/services', '/about', '/help'].includes(currentPath)) return <InfoPage type={currentPath.slice(1)} navigate={navigate} openAuth={handleOpenAuth} />;
+    if (currentPath === '/') return <LandingPage navigate={navigate} openAuth={handleOpenAuth} user={user} />;
+    if (['/services', '/about', '/help'].includes(currentPath)) return <InfoPage type={currentPath.slice(1)} navigate={navigate} openAuth={handleOpenAuth} user={user} />;
     if (currentPath === '/unauthorized') return <UnauthorizedPage navigate={navigate} />;
     if (currentPath.startsWith('/citizen') && user?.role === 'OFFICER') return <UnauthorizedPage navigate={navigate} />;
     if (currentPath.startsWith('/officer') && user && user.role !== 'OFFICER' && currentPath !== '/officer/login') return <UnauthorizedPage navigate={navigate} />;
@@ -244,6 +244,7 @@ export default function App() {
           ? { ...app, status, remarks }
           : app
       ));
+      fetchData();
       showToast(`Application #${appId} marked as ${status}.`);
       return true;
     }

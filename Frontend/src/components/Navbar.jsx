@@ -13,7 +13,9 @@ export default function Navbar({ activePortal, setActivePortal, user, onOpenAuth
         <div 
           className="flex items-center gap-3 cursor-pointer" 
           onClick={() => {
-            if (!isOfficer) { setActivePortal('citizen'); onNavigate('/'); }
+            if (isOfficer) { onNavigate('/officer/dashboard'); }
+            else if (isCitizen) { onNavigate('/citizen/dashboard'); }
+            else { setActivePortal('citizen'); onNavigate('/'); }
           }}
         >
           <div className="relative">
@@ -34,7 +36,11 @@ export default function Navbar({ activePortal, setActivePortal, user, onOpenAuth
         </div>
 
         <div className="hidden xl:flex items-center gap-5 text-xs font-semibold text-slate-500">
-          <button onClick={() => onNavigate('/')} className="hover:text-slate-900">Home</button>
+          <button onClick={() => {
+            if (isOfficer) onNavigate('/officer/dashboard');
+            else if (isCitizen) onNavigate('/citizen/dashboard');
+            else onNavigate('/');
+          }} className="hover:text-slate-900">Home</button>
           <button onClick={() => onNavigate('/services')} className="hover:text-slate-900">Services</button>
           <button onClick={() => onNavigate('/about')} className="hover:text-slate-900">About</button>
           <button onClick={() => onNavigate('/help')} className="hover:text-slate-900">Help</button>

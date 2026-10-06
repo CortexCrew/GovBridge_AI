@@ -39,14 +39,44 @@ export const CERTIFICATE_FIELDS = {
   ],
 };
 
-export const DOCUMENT_GUIDANCE = {
-  'Income Certificate': 'Aadhaar card, Ration card, Salary slip / income proof, Bank passbook (if applicable)',
-  'Community Certificate': "Aadhaar card, Parent's/Father's community certificate, School transfer certificate, Ration card",
-  'Nativity Certificate': 'Aadhaar card, Birth certificate, Ration card, Residence proof',
-  'Birth Certificate': "Hospital birth record / discharge summary, Parents' Aadhaar cards, Marriage certificate of parents (if applicable), Address proof",
-  'Residence Certificate': 'Aadhaar card, Ration card, Utility bill, Rental agreement (if not owned)',
+// Each entry is an array of { key, label, required, accept } per document slot
+export const REQUIRED_DOCUMENTS = {
+  'Income Certificate': [
+    { key: 'aadhaar', label: 'Aadhaar Card', required: true, accept: '.pdf,.jpg,.jpeg,.png' },
+    { key: 'ration_card', label: 'Ration Card', required: true, accept: '.pdf,.jpg,.jpeg,.png' },
+    { key: 'salary_slip', label: 'Salary Slip / Income Proof', required: true, accept: '.pdf,.jpg,.jpeg,.png' },
+    { key: 'bank_passbook', label: 'Bank Passbook (if applicable)', required: false, accept: '.pdf,.jpg,.jpeg,.png' },
+  ],
+  'Community Certificate': [
+    { key: 'aadhaar', label: 'Aadhaar Card', required: true, accept: '.pdf,.jpg,.jpeg,.png' },
+    { key: 'parent_community_cert', label: "Parent's / Father's Community Certificate", required: true, accept: '.pdf,.jpg,.jpeg,.png' },
+    { key: 'school_tc', label: 'School Transfer Certificate', required: true, accept: '.pdf,.jpg,.jpeg,.png' },
+    { key: 'ration_card', label: 'Ration Card', required: false, accept: '.pdf,.jpg,.jpeg,.png' },
+  ],
+  'Nativity Certificate': [
+    { key: 'aadhaar', label: 'Aadhaar Card', required: true, accept: '.pdf,.jpg,.jpeg,.png' },
+    { key: 'birth_certificate', label: 'Birth Certificate', required: true, accept: '.pdf,.jpg,.jpeg,.png' },
+    { key: 'ration_card', label: 'Ration Card', required: true, accept: '.pdf,.jpg,.jpeg,.png' },
+    { key: 'residence_proof', label: 'Residence Proof', required: false, accept: '.pdf,.jpg,.jpeg,.png' },
+  ],
+  'Birth Certificate': [
+    { key: 'hospital_record', label: 'Hospital Birth Record / Discharge Summary', required: true, accept: '.pdf,.jpg,.jpeg,.png' },
+    { key: 'father_aadhaar', label: "Father's Aadhaar Card", required: true, accept: '.pdf,.jpg,.jpeg,.png' },
+    { key: 'mother_aadhaar', label: "Mother's Aadhaar Card", required: true, accept: '.pdf,.jpg,.jpeg,.png' },
+    { key: 'marriage_cert', label: "Parents' Marriage Certificate (if applicable)", required: false, accept: '.pdf,.jpg,.jpeg,.png' },
+    { key: 'address_proof', label: 'Address Proof', required: false, accept: '.pdf,.jpg,.jpeg,.png' },
+  ],
+  'Residence Certificate': [
+    { key: 'aadhaar', label: 'Aadhaar Card', required: true, accept: '.pdf,.jpg,.jpeg,.png' },
+    { key: 'ration_card', label: 'Ration Card', required: false, accept: '.pdf,.jpg,.jpeg,.png' },
+    { key: 'utility_bill', label: 'Utility Bill (Electricity / Water)', required: true, accept: '.pdf,.jpg,.jpeg,.png' },
+    { key: 'rental_agreement', label: 'Rental Agreement (if not owned)', required: false, accept: '.pdf,.jpg,.jpeg,.png' },
+  ],
 };
 
-export const getDocumentGuidance = (certificateType) => DOCUMENT_GUIDANCE[certificateType] || '';
+export const getDocumentGuidance = (certificateType) =>
+  (REQUIRED_DOCUMENTS[certificateType] || []).map((d) => d.label).join(', ');
 
 export const getFieldsForCertificate = (certificateType) => CERTIFICATE_FIELDS[certificateType] || [];
+
+export const getRequiredDocuments = (certificateType) => REQUIRED_DOCUMENTS[certificateType] || [];

@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { AlertCircle, ArrowLeft, ArrowRight, FileText, FolderLock, LayoutDashboard, Plus, Search, ShieldCheck, UserRound } from 'lucide-react';
-import { certificateApi, complaintApi, downloadLockerFile, lockerApi, officerApi } from '../services/api';
+import { AlertCircle, ArrowLeft, ArrowRight, Download, ExternalLink, FileText, FolderLock, LayoutDashboard, Plus, Search, ShieldCheck, UserRound } from 'lucide-react';
+import { certificateApi, complaintApi, downloadLockerFile, lockerApi, officerApi, getMediaUrl } from '../services/api';
 import { getFieldsForCertificate } from '../config/certificateFields';
 
 const count = (items, value) => items.filter(x => String(x.status || x.complaint_status || '').toUpperCase() === value).length;
@@ -20,7 +20,7 @@ export function CitizenPages({ path, user, complaints, applications, onComplaint
   const matchedComplaints = useMemo(() => complaints.filter(x => `${x.title} ${x.category} ${idOf(x)}`.toLowerCase().includes(query.toLowerCase())), [complaints, query]);
   const matchedApps = useMemo(() => applications.filter(x => `${x.certificate_type} ${idOf(x)}`.toLowerCase().includes(query.toLowerCase())), [applications, query]);
   if (!user) return <Empty icon={ShieldCheck} title="Sign in to continue" copy="Your requests and personal information are protected." action={<button className="btn btn-saffron" onClick={() => window.history.pushState({}, '', '/login')}>Sign in</button>}/>;
-  if (path === '/citizen/dashboard') return <div className="portal-page"><PortalHeader title={`Good morning, ${user.name || 'Citizen'}`} subtitle="Let’s build a better India together." icon={LayoutDashboard}/><section className="dashboard-voice"><div><p className="eyebrow">Your voice matters</p><h2>Services and requests, within reach.</h2><p>Access government services, track your requests and stay connected.</p></div><div className="dashboard-actions"><button className="btn btn-secondary" onClick={onCertificates}>Apply for a certificate <ArrowRight size={16}/></button><button className="btn btn-secondary" onClick={() => onNavigate('/citizen/digital-locker')}>Digital Locker <FolderLock size={16}/></button><button className="btn btn-saffron" onClick={onComplaint}>Raise a complaint <ArrowRight size={16}/></button></div></section><Stats complaints={complaints} applications={applications}/><div className="two-panels"><ListPanel title="Recent complaints" items={complaints.slice(0,4)} type="complaint" empty="No complaints yet." onSelect={item => onNavigate(`/citizen/complaints/${idOf(item)}`)}/><ListPanel title="Recent applications" items={applications.slice(0,4)} type="application" empty="No certificate applications yet."/></div></div>;
+  if (path === '/citizen/dashboard') return <div className="portal-page"><PortalHeader title={`Good morning, ${user.name || 'Citizen'}`} subtitle="Let’s build a better India together." icon={LayoutDashboard}/><section className="dashboard-voice"><div><p className="eyebrow">Your voice matters</p><h2>Services and requests, within reach.</h2><p>Access government services, track your requests and stay connected.</p></div><div className="dashboard-actions"><button className="btn btn-secondary" onClick={onCertificates}>Apply for a certificate <ArrowRight size={16}/></button><button className="btn btn-secondary" onClick={() => onNavigate('/citizen/digital-locker')}>Digital Locker <FolderLock size={16}/></button><button className="btn btn-saffron" onClick={onComplaint}>Raise a complaint <ArrowRight size={16}/></button></div></section><Stats complaints={complaints} applications={applications}/><div className="two-panels"><ListPanel title="Recent complaints" items={complaints.slice(0,4)} type="complaint" empty="No complaints yet." onSelect={item => onNavigate(`/citizen/complaints/${idOf(item)}`)}/><ListPanel title="Recent applications" items={applications.slice(0,4)} type="application" empty="No certificate applications yet." onSelect={item => onNavigate(`/citizen/certificates/${idOf(item)}`)}/></div></div>;
   if (path === '/citizen/complaints/new') return <div className="portal-page"><PortalHeader title="Raise a complaint" subtitle="Tell us about the issue. GovBridge AI will analyze and route it to the appropriate department." icon={AlertCircle} onBack={onBack}/><div className="ai-flow"><b>Complaint</b><i/> <b>AI analysis</b><i/> <b>Category · priority · department</b><i/> <b>Department routing</b></div><section className="form-callout"><h2>Ready to report an issue?</h2><p>You will not be asked to choose a department, officer, category or priority.</p><button className="btn btn-saffron" onClick={onComplaint}>Open complaint form</button></section></div>;
   if (path.startsWith('/citizen/complaints/')) { const complaintId = path.split('/').pop(); const item = complaints.find(x => String(idOf(x)) === complaintId); return <ComplaintDetail item={item} complaintId={complaintId} />; }
   if (path === '/citizen/complaints') return <div className="portal-page"><PortalHeader title="My complaints" subtitle="Track the issues you have reported." icon={AlertCircle}><button className="btn btn-saffron" onClick={onComplaint}><Plus size={16}/> Raise complaint</button></PortalHeader><Filter value={query} onChange={setQuery} placeholder="Search complaints..."/>{matchedComplaints.length ? <ComplaintTable items={matchedComplaints} onSelect={setSelected}/> : <Empty icon={AlertCircle} title="You haven't raised any complaints yet." copy="When you report an issue, its department and status will appear here." action={<button className="btn btn-saffron" onClick={onComplaint}>Raise a complaint</button>}/>} {selected && <ComplaintDetail item={selected} compact onClose={() => setSelected(null)}/>}</div>;
@@ -64,8 +64,74 @@ function ComplaintDetail({ item, complaintId: requestedId, compact, onClose }) {
   </section>;
 }
 function CertificateServices({ onCertificate }) { const types=['Income Certificate','Community Certificate','Nativity Certificate','Birth Certificate','Residence Certificate']; return <div className="portal-page"><PortalHeader title="Certificate services" subtitle="Apply for essential government certificates online." icon={FileText}/><div className="certificate-grid">{types.map(type => <article className="certificate-card" key={type}><FileText size={26}/><h3>{type}</h3><p>Submit a secure application with up to five supporting documents.</p><button onClick={() => onCertificate({ title:type })}>Apply <ArrowRight size={15}/></button></article>)}</div></div>; }
-function ApplicationsPage({ items, query, setQuery }) { return <div className="portal-page"><PortalHeader title="My certificate applications" subtitle="Track the status of your certificate requests." icon={FileText}/><Filter value={query} onChange={setQuery} placeholder="Search certificate applications..."/>{items.length ? <div className="data-table"><div className="table-head"><span>ID</span><span>Certificate type</span><span>Applied</span><span>Status</span></div>{items.map(x => <div className="table-row" key={idOf(x)}><span>#{idOf(x)}</span><span><b>{x.certificate_type}</b></span><span>{date(x.application_date || x.created_at)}</span><Status value={x.status}/></div>)}</div> : <Empty icon={FileText} title="No certificate applications yet." copy="Start an application to see it here."/>}</div>; }
-function CertificateDetail({ id, fallback }) { const [item, setItem]=useState(fallback), [error,setError]=useState(''); React.useEffect(()=>{certificateApi.detail(id).then(r=>{if(r.success) setItem(r.data || r.application); else setError('Unable to load application details.');});},[id]); return <div className="portal-page"><PortalHeader title="Application details" subtitle={`Application #${id}`} icon={FileText}/>{item ? <div className="detail-grid"><article><small>Certificate type</small><h2>{item.certificate_type}</h2><p><b>Applied:</b> {date(item.application_date || item.created_at)}</p><p><b>Status:</b> <Status value={item.status}/></p></article><article><small>Review</small><p>{item.remarks || 'No officer remarks yet.'}</p><p className="api-note">Documents are displayed when returned by the existing application-details API.</p></article></div> : <Empty icon={FileText} title="Loading application" copy={error || 'Retrieving the current application details...'}/>}</div>; }
+function CertificateDetail({ id, fallback }) {
+  const [item, setItem] = useState(fallback);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    certificateApi.detail(id).then(r => {
+      if (r.success) setItem(r.data || r.application);
+      else setError('Unable to load application details.');
+    });
+  }, [id]);
+
+  return (
+    <div className="portal-page">
+      <PortalHeader title="Application details" subtitle={`Application #${id}`} icon={FileText}/>
+      {item ? (
+        <>
+          <div className="detail-grid">
+            <article>
+              <small>Certificate type</small>
+              <h2>{item.certificate_type}</h2>
+              <p><b>Applied:</b> {date(item.application_date || item.created_at)}</p>
+              <p><b>Status:</b> <Status value={item.status}/></p>
+            </article>
+            <article>
+              <small>Review notes</small>
+              <p>{item.remarks || (String(item.status).toUpperCase() === 'APPROVED' ? 'Application verified and approved by the department officer.' : 'No officer remarks yet.')}</p>
+            </article>
+          </div>
+
+          {String(item.status).toUpperCase() === 'APPROVED' && (
+            <div className="detail-grid" style={{ marginTop: '1rem' }}>
+              <article style={{ gridColumn: '1 / -1', background: '#edf7ed', border: '1px solid #b7dfb9' }}>
+                <small style={{ color: '#2e7d32', fontWeight: 'bold' }}>OFFICIAL ISSUED CERTIFICATE</small>
+                <h3 style={{ marginTop: '0.25rem', color: '#1b5e20' }}>Your {item.certificate_type} is Ready</h3>
+                <p style={{ marginTop: '0.35rem', color: '#2e5b32' }}>The verifying officer has approved your application and issued your official certificate.</p>
+                {item.issued_certificate ? (
+                  <div style={{ marginTop: '0.75rem' }}>
+                    <a
+                      href={getMediaUrl(item.issued_certificate.download_url || item.issued_certificate.file_url)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="btn btn-saffron"
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', textDecoration: 'none' }}
+                    >
+                      <Download size={16} /> Download Approved Certificate
+                    </a>
+                  </div>
+                ) : (
+                  <p className="api-note" style={{ marginTop: '0.5rem' }}>Your certificate is also available in your <a href="/citizen/digital-locker" className="text-link">Digital Locker</a>.</p>
+                )}
+              </article>
+            </div>
+          )}
+
+          <div className="detail-grid" style={{ marginTop: '1rem' }}>
+            <article style={{ gridColumn: '1 / -1' }}>
+              <small>Supporting documents</small>
+              <h3 style={{ marginTop: '0.25rem' }}>Uploaded Citizen Documents</h3>
+              <SupportingDocumentsList documents={item.documents} />
+            </article>
+          </div>
+        </>
+      ) : (
+        <Empty icon={FileText} title="Loading application" copy={error || 'Retrieving the current application details...'}/>
+      )}
+    </div>
+  );
+}
 
 export function OfficerComplaintsPage({ complaints }) {
   const [selected, setSelected] = useState(null);
@@ -158,16 +224,81 @@ function ApplicationDetails({ application }) {
   return <dl className="application-details">{Object.entries(data).map(([key, value]) => <div key={key}><dt><small>{labels[key] || key.replaceAll('_', ' ')}</small></dt><dd>{String(value)}</dd></div>)}</dl>;
 }
 
+function SupportingDocumentsList({ documents }) {
+  if (!documents || !documents.length) {
+    return <p className="api-note" style={{ marginTop: '0.5rem' }}>No supporting documents uploaded with this application.</p>;
+  }
+
+  return (
+    <div className="data-table" style={{ marginTop: '0.75rem' }}>
+      <div className="table-head">
+        <span>Document Name / Type</span>
+        <span>File Name</span>
+        <span>Uploaded On</span>
+        <span>Action</span>
+      </div>
+      {documents.map((doc, idx) => {
+        const fileUrl = getMediaUrl(doc.file_url || doc.download_url || (doc.file_name ? `/uploads/${doc.file_name}` : ''));
+        const docLabel = doc.document_type || doc.file_name || `Supporting Document #${idx + 1}`;
+        return (
+          <div className="table-row" key={doc.document_id || idx} style={{ alignItems: 'center' }}>
+            <span><b>{docLabel}</b></span>
+            <span><small style={{ wordBreak: 'break-all' }}>{doc.file_name || 'Attached File'}</small></span>
+            <span>{date(doc.uploaded_at)}</span>
+            <span>
+              {fileUrl ? (
+                <a
+                  href={fileUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="btn btn-secondary"
+                  style={{
+                    padding: '0.35rem 0.75rem',
+                    fontSize: '0.78rem',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.35rem',
+                    textDecoration: 'none'
+                  }}
+                >
+                  <ExternalLink size={14} /> View / Open
+                </a>
+              ) : (
+                <span className="api-note">File not available</span>
+              )}
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function OfficerCertificatesPage({ applications, onReview }) {
   const [selectedId, setSelectedId] = useState(null);
+  const [freshDetail, setFreshDetail] = useState(null);
   const [remarks, setRemarks] = useState('');
   const [file, setFile] = useState(null);
   const [fileError, setFileError] = useState('');
-  const current = applications.find(x => idOf(x) === selectedId);
+
+  useEffect(() => {
+    if (!selectedId) {
+      setFreshDetail(null);
+      return;
+    }
+    certificateApi.detail(selectedId).then(res => {
+      if (res && res.success && (res.data || res.application)) {
+        setFreshDetail(res.data || res.application);
+      }
+    });
+  }, [selectedId]);
+
+  const fallbackApp = applications.find(x => idOf(x) === selectedId);
+  const current = freshDetail || fallbackApp;
   const isPending = app => String(app.status).toUpperCase() === 'PENDING';
 
-  const open = app => { setSelectedId(idOf(app)); setRemarks(''); setFile(null); setFileError(''); };
-  const close = () => setSelectedId(null);
+  const open = app => { setSelectedId(idOf(app)); setFreshDetail(null); setRemarks(''); setFile(null); setFileError(''); };
+  const close = () => { setSelectedId(null); setFreshDetail(null); };
   const pickFile = event => {
     const picked = event.target.files[0] || null;
     setFile(null);
@@ -178,7 +309,8 @@ function OfficerCertificatesPage({ applications, onReview }) {
     setFile(picked);
   };
   const decide = async status => {
-    const ok = await onReview(idOf(current), status, remarks.trim(), status === 'Approved' ? file : null);
+    const finalRemarks = remarks.trim() || (status === 'Approved' ? 'Application verified and certificate approved.' : 'Application rejected.');
+    const ok = await onReview(idOf(current), status, finalRemarks, status === 'Approved' ? file : null);
     if (ok) close();
   };
 
@@ -188,16 +320,45 @@ function OfficerCertificatesPage({ applications, onReview }) {
       <article><small>Application</small><h2>{current.certificate_type}</h2><p><b>Applied:</b> {date(current.application_date)}</p><p><b>Status:</b> <Status value={current.status}/></p>{current.remarks && <p><b>Officer remarks:</b> {current.remarks}</p>}</article>
       <article><small>Submitted details</small><ApplicationDetails application={current}/></article>
     </div>
+
+    <section className="detail-grid" style={{ marginTop: '1rem' }}>
+      <article style={{ gridColumn: '1 / -1' }}>
+        <small>Supporting documents</small>
+        <h3 style={{ marginTop: '0.25rem' }}>Uploaded Citizen Documents</h3>
+        <SupportingDocumentsList documents={current.documents} />
+      </article>
+    </section>
+
     {isPending(current) ? <section className="detail-grid officer-actions"><article>
       <h3>Decision</h3>
-      <label>Officer remarks<textarea value={remarks} onChange={event => setRemarks(event.target.value)} rows="3" placeholder="Record verification notes for this decision."/></label>
+      <label>Officer remarks (optional)<textarea value={remarks} onChange={event => setRemarks(event.target.value)} rows="3" placeholder="Record verification notes for this decision (optional)."/></label>
       <label>Approved certificate (required to approve)<input type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" onChange={pickFile}/></label>
       {fileError && <p className="api-note">{fileError}</p>}
       {file && <p className="api-note">Selected: {file.name}</p>}
-      <button className="btn btn-saffron" onClick={() => decide('Approved')} disabled={!remarks.trim() || !file}>Approve and issue certificate</button>
+      <button className="btn btn-saffron" onClick={() => decide('Approved')} disabled={!file}>Approve and issue certificate</button>
       {' '}
-      <button className="btn btn-secondary" onClick={() => decide('Rejected')} disabled={!remarks.trim()}>Reject</button>
-    </article></section> : <p className="api-note">This application has already been reviewed.</p>}
+      <button className="btn btn-secondary" onClick={() => decide('Rejected')}>Reject</button>
+    </article></section> : (
+      <div className="detail-grid" style={{ marginTop: '1rem' }}>
+        <article style={{ gridColumn: '1 / -1' }}>
+          <small>Application status</small>
+          <p className="api-note" style={{ fontSize: '0.9rem', color: '#103f67' }}>This application has been marked as <b>{current.status}</b>.</p>
+          {current.issued_certificate && (
+            <div style={{ marginTop: '0.75rem' }}>
+              <a
+                href={getMediaUrl(current.issued_certificate.download_url || current.issued_certificate.file_url)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="btn btn-secondary"
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', textDecoration: 'none' }}
+              >
+                <Download size={15}/> Download Issued Certificate ({current.issued_certificate.file_name})
+              </a>
+            </div>
+          )}
+        </article>
+      </div>
+    )}
   </div>;
 
   return <div className="portal-page officer-page">

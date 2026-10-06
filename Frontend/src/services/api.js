@@ -1,4 +1,11 @@
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
+export const API_ORIGIN = API_BASE.replace(/\/api\/?$/, '');
+
+export function getMediaUrl(path) {
+  if (!path) return '';
+  if (path.startsWith('http://') || path.startsWith('https://')) return path;
+  return `${API_ORIGIN}${path.startsWith('/') ? '' : '/'}${path}`;
+}
 
 export async function apiRequest(endpoint, options = {}) {
   const token = localStorage.getItem('token');
