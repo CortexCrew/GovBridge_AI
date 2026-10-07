@@ -1,4 +1,3 @@
-const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const repository = require('./certificate.repository');
@@ -15,8 +14,7 @@ class CertificateService {
   }
 
   /**
-   * Submit a new certificate application with supporting documents.
-  * Uploads supporting files to Azure and cleans up staged files on completion.
+  * Submit a new certificate application with supporting documents.
    *
    * @param {number} userId - From JWT (req.user.user_id)
    * @param {string} certificateType
@@ -36,13 +34,7 @@ class CertificateService {
       throw err;
     }
 
-    let application;
-    try {
-      application = await repository.createApplication(userId, certificateType, applicationData);
-    } catch (error) {
-      this._cleanUpFiles(files);
-      throw error;
-    }
+    const application = await repository.createApplication(userId, certificateType, applicationData);
     const savedDocuments = [];
     const uploadedBlobs = [];
     try {
@@ -74,8 +66,6 @@ class CertificateService {
         console.warn('Certificate application cleanup failed:', cleanupError.message);
       }
       throw error;
-    } finally {
-      this._cleanUpFiles(files);
     }
 
     return { ...application, documents: savedDocuments };
@@ -198,6 +188,26 @@ class CertificateService {
     return certificate;
   }
 
+  async getIssuedCertificateAccess(applicationId, user, disposition = 'attachment') {
+    const certificate = await this.getIssuedCertificateFile(applicationId, user);
+    const fileName = certificate.file_name || path.basename(String(certificate.file_path).replace(/\\/g, '/'));
+    const contentType = certificate.content_type || 'application/octet-stream';
+
+    if (certificate.storage_provider === 'azure') {
+      return {
+        ...(await blobStorage.createReadUrl(certificate.file_path, fileName, contentType, disposition)),
+        file_name: fileName,
+        content_type: contentType
+      };
+    }
+
+    return {
+      local_url: `/api/certificates/applications/${applicationId}/issued-file`,
+      file_name: fileName,
+      content_type: contentType
+    };
+  }
+
   /**
    * Officer reviews an application — sets status, remarks, and records officer_id.
    *
@@ -208,12 +218,7 @@ class CertificateService {
    * @param {Object|null} certificateFile - Multer file; required when approving
    */
   async reviewApplication(applicationId, status, remarks, officerId = null, certificateFile = null) {
-    try {
-      return await this._reviewApplication(applicationId, status, remarks, officerId, certificateFile);
-    } catch (error) {
-      if (certificateFile) this._cleanUpFiles([certificateFile]);
-      throw error;
-    }
+    return this._reviewApplication(applicationId, status, remarks, officerId, certificateFile);
   }
 
   async _reviewApplication(applicationId, status, remarks, officerId, certificateFile) {
@@ -261,15 +266,33 @@ class CertificateService {
         err.statusCode = 400;
         throw err;
       }
-      updatedApplication = await repository.approveWithCertificate(
-        applicationId,
-        remarks,
-        application.user_id,
-        officerId,
-        certificateFile.path
-      );
+      const extension = path.extname(certificateFile.originalname || '').toLowerCase();
+      const blobName = `${application.user_id}/issued/${crypto.randomUUID()}${extension}`;
+      try {
+        await blobStorage.uploadFile(certificateFile, blobName);
+        updatedApplication = await repository.approveWithCertificate(
+          applicationId,
+          remarks,
+          application.user_id,
+          officerId,
+          blobName,
+          {
+            file_name: certificateFile.originalname,
+            content_type: certificateFile.mimetype,
+            file_size: certificateFile.size,
+            storage_provider: 'azure'
+          }
+        );
+        if (!updatedApplication) {
+          const err = new Error('Application not found');
+          err.statusCode = 404;
+          throw err;
+        }
+      } catch (error) {
+        await blobStorage.deleteFile(blobName);
+        throw error;
+      }
     } else {
-      if (certificateFile) this._cleanUpFiles([certificateFile]);
       updatedApplication = await repository.updateApplicationStatus(
         applicationId,
         status,
@@ -286,22 +309,6 @@ class CertificateService {
     return { application: updatedApplication };
   }
 
-  /**
-   * Internal helper — removes uploaded files from disk.
-   * @param {Array} files - Multer file objects
-   */
-  _cleanUpFiles(files) {
-    if (!files) return;
-    for (const file of files) {
-      try {
-        if (file.path && fs.existsSync(file.path)) {
-          fs.unlinkSync(file.path);
-        }
-      } catch (e) {
-        console.warn(`File cleanup failed for ${file.path}:`, e.message);
-      }
-    }
-  }
 }
 
 module.exports = new CertificateService();

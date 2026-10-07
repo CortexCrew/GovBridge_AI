@@ -125,6 +125,10 @@ class CertificateController {
         return res.status(400).json({ success: false, message: 'Invalid certificate request' });
       }
       const certificate = await service.getIssuedCertificateFile(applicationId, req.user);
+      if (certificate.storage_provider === 'azure') {
+        const access = await service.getIssuedCertificateAccess(applicationId, req.user, 'attachment');
+        return res.redirect(302, access.url);
+      }
       const fileName = path.basename(String(certificate.file_path).replace(/\\/g, '/'));
       const absolutePath = path.join(UPLOAD_DIR, fileName);
       if (!fs.existsSync(absolutePath)) {
@@ -133,6 +137,20 @@ class CertificateController {
         throw error;
       }
       return res.download(absolutePath, fileName);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async getIssuedCertificateAccess(req, res, next) {
+    try {
+      const applicationId = parseInt(req.params.applicationId, 10);
+      if (!Number.isInteger(applicationId) || applicationId < 1) {
+        return res.status(400).json({ success: false, message: 'Invalid certificate request' });
+      }
+      const disposition = req.query.disposition === 'inline' ? 'inline' : 'attachment';
+      const access = await service.getIssuedCertificateAccess(applicationId, req.user, disposition);
+      return res.status(200).json({ success: true, data: access });
     } catch (error) {
       next(error);
     }

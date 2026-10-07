@@ -10,7 +10,11 @@ class LockerRepository {
       CREATE TABLE IF NOT EXISTS digital_locker (
         user_id         INTEGER NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
         application_id  INTEGER NOT NULL REFERENCES certificate_applications(application_id) ON DELETE CASCADE,
-        file_path       VARCHAR(500) NOT NULL
+        file_path       VARCHAR(500) NOT NULL,
+        file_name       VARCHAR(255),
+        content_type    VARCHAR(150),
+        file_size       BIGINT,
+        storage_provider VARCHAR(20) NOT NULL DEFAULT 'local'
       );
     `);
 
@@ -18,6 +22,10 @@ class LockerRepository {
       ALTER TABLE digital_locker
         ADD COLUMN IF NOT EXISTS uploaded_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
         ADD COLUMN IF NOT EXISTS uploaded_by INTEGER REFERENCES officers(officer_id) ON DELETE SET NULL,
+        ADD COLUMN IF NOT EXISTS file_name VARCHAR(255),
+        ADD COLUMN IF NOT EXISTS content_type VARCHAR(150),
+        ADD COLUMN IF NOT EXISTS file_size BIGINT,
+        ADD COLUMN IF NOT EXISTS storage_provider VARCHAR(20) NOT NULL DEFAULT 'local',
         ALTER COLUMN application_id SET NOT NULL;
     `);
 
@@ -38,18 +46,26 @@ class LockerRepository {
    * Insert or replace the officer-issued certificate for an application.
    * Accepts an optional transaction client so callers can make it atomic.
    */
-  async upsertEntry(client, userId, applicationId, filePath, officerId) {
+  async upsertEntry(client, userId, applicationId, filePath, officerId, metadata = {}) {
     const query = `
-      INSERT INTO digital_locker (user_id, application_id, file_path, uploaded_by)
-      VALUES ($1, $2, $3, $4)
+      INSERT INTO digital_locker (user_id, application_id, file_path, uploaded_by, file_name, content_type, file_size, storage_provider)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
       ON CONFLICT (user_id, application_id)
       DO UPDATE SET
         file_path = EXCLUDED.file_path,
         uploaded_by = EXCLUDED.uploaded_by,
+        file_name = EXCLUDED.file_name,
+        content_type = EXCLUDED.content_type,
+        file_size = EXCLUDED.file_size,
+        storage_provider = EXCLUDED.storage_provider,
         uploaded_at = CURRENT_TIMESTAMP
-      RETURNING user_id, application_id, file_path, uploaded_at, uploaded_by;
+      RETURNING user_id, application_id, file_path, uploaded_at, uploaded_by, file_name, content_type, file_size, storage_provider;
     `;
-    const result = await (client || db).query(query, [userId, applicationId, filePath, officerId]);
+    const result = await (client || db).query(query, [
+      userId, applicationId, filePath, officerId,
+      metadata.file_name || null, metadata.content_type || null,
+      metadata.file_size || null, metadata.storage_provider || 'local'
+    ]);
     return result.rows[0];
   }
 
@@ -65,9 +81,9 @@ class LockerRepository {
         dl.application_id,
         ca.certificate_type,
         dl.file_path,
-        NULL::varchar              AS file_name,
-        NULL::varchar              AS content_type,
-        'local'::varchar           AS storage_provider,
+        dl.file_name,
+        dl.content_type,
+        dl.storage_provider,
         NULL::varchar              AS document_type,
         dl.uploaded_at
       FROM digital_locker dl
@@ -96,7 +112,7 @@ class LockerRepository {
 
   async findIssuedCertificate(userId, applicationId) {
     const result = await db.query(
-      'SELECT file_path FROM digital_locker WHERE user_id = $1 AND application_id = $2',
+      'SELECT file_path, file_name, content_type, storage_provider FROM digital_locker WHERE user_id = $1 AND application_id = $2',
       [userId, applicationId]
     );
     return result.rows[0] || null;

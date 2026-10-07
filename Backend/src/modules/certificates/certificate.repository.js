@@ -152,7 +152,7 @@ class CertificateRepository {
 
   async getIssuedCertificate(applicationId) {
     const result = await db.query(
-      'SELECT application_id, file_path, uploaded_at FROM digital_locker WHERE application_id = $1',
+      'SELECT application_id, file_path, uploaded_at, file_name, content_type, file_size, storage_provider FROM digital_locker WHERE application_id = $1',
       [applicationId]
     );
     return result.rows[0] || null;
@@ -217,7 +217,7 @@ class CertificateRepository {
     }
 
     const lockerResult = await db.query(
-      `SELECT application_id, file_path, uploaded_at, uploaded_by 
+      `SELECT application_id, file_path, uploaded_at, uploaded_by, file_name, content_type, file_size, storage_provider
        FROM digital_locker 
        WHERE application_id = ANY($1::int[])`,
       [appIds]
@@ -225,10 +225,13 @@ class CertificateRepository {
     const lockerByApp = {};
     for (const row of lockerResult.rows) {
       const rawPath = String(row.file_path || '').replace(/\\/g, '/');
-      const fileName = rawPath.split('/').pop() || 'certificate.pdf';
+      const fileName = row.file_name || rawPath.split('/').pop() || 'certificate.pdf';
       lockerByApp[row.application_id] = {
         application_id: row.application_id,
         file_name: fileName,
+        content_type: row.content_type,
+        file_size: row.file_size,
+        storage_provider: row.storage_provider || 'local',
         download_url: `/api/locker/download/issued/${row.application_id}`,
         file_url: `/api/locker/download/issued/${row.application_id}`,
         uploaded_at: row.uploaded_at
@@ -283,7 +286,7 @@ class CertificateRepository {
     });
 
     const lockerResult = await db.query(
-      `SELECT file_path, uploaded_at, uploaded_by 
+      `SELECT file_path, uploaded_at, uploaded_by, file_name, content_type, file_size, storage_provider
        FROM digital_locker 
        WHERE application_id = $1`,
       [applicationId]
@@ -296,7 +299,10 @@ class CertificateRepository {
       const fileName = rawPath.split('/').pop() || 'certificate.pdf';
       issuedCertificate = {
         application_id: applicationId,
-        file_name: fileName,
+        file_name: row.file_name || fileName,
+        content_type: row.content_type,
+        file_size: row.file_size,
+        storage_provider: row.storage_provider || 'local',
         download_url: `/api/locker/download/issued/${applicationId}`,
         file_url: `/api/locker/download/issued/${applicationId}`,
         uploaded_at: row.uploaded_at
@@ -361,7 +367,7 @@ class CertificateRepository {
     }
 
     const lockerResult = await db.query(
-      `SELECT application_id, file_path, uploaded_at, uploaded_by 
+      `SELECT application_id, file_path, uploaded_at, uploaded_by, file_name, content_type, file_size, storage_provider
        FROM digital_locker 
        WHERE application_id = ANY($1::int[])`,
       [appIds]
@@ -369,10 +375,13 @@ class CertificateRepository {
     const lockerByApp = {};
     for (const row of lockerResult.rows) {
       const rawPath = String(row.file_path || '').replace(/\\/g, '/');
-      const fileName = rawPath.split('/').pop() || 'certificate.pdf';
+      const fileName = row.file_name || rawPath.split('/').pop() || 'certificate.pdf';
       lockerByApp[row.application_id] = {
         application_id: row.application_id,
         file_name: fileName,
+        content_type: row.content_type,
+        file_size: row.file_size,
+        storage_provider: row.storage_provider || 'local',
         download_url: `/api/locker/download/issued/${row.application_id}`,
         file_url: `/api/locker/download/issued/${row.application_id}`,
         uploaded_at: row.uploaded_at
@@ -456,7 +465,7 @@ class CertificateRepository {
    * @param {number} officerId - Approving officer
    * @param {string} filePath - Uploaded certificate file
    */
-  async approveWithCertificate(applicationId, remarks, userId, officerId, filePath) {
+  async approveWithCertificate(applicationId, remarks, userId, officerId, filePath, metadata = {}) {
     const client = await db.getClient();
     try {
       await client.query('BEGIN');
@@ -482,7 +491,7 @@ class CertificateRepository {
         return null;
       }
 
-      await lockerRepository.upsertEntry(client, userId, applicationId, filePath, officerId);
+      await lockerRepository.upsertEntry(client, userId, applicationId, filePath, officerId, metadata);
       await client.query('COMMIT');
       return result.rows[0];
     } catch (error) {

@@ -24,7 +24,7 @@ function safeDispositionName(fileName) {
 async function uploadFile(file, blobName) {
   try {
     const blobClient = getContainerClient().getBlockBlobClient(blobName);
-    await blobClient.uploadFile(file.path, {
+    await blobClient.uploadData(file.buffer, {
       blobHTTPHeaders: {
         blobContentType: file.mimetype,
         blobContentDisposition: `attachment; filename="${safeDispositionName(file.originalname)}"`,

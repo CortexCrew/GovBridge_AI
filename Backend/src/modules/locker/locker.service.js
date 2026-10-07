@@ -63,12 +63,11 @@ class LockerService {
       throw err;
     }
 
-    if (kind === 'document' && record.storage_provider === 'azure') {
+    if (record.storage_provider === 'azure') {
       const fileName = record.file_name || fileNameOf(record.file_path);
       const contentType = record.content_type || 'application/octet-stream';
-      const disposition = contentType === 'application/pdf' ? 'inline' : 'attachment';
       return {
-        ...(await blobStorage.createReadUrl(record.file_path, fileName, contentType, disposition)),
+        ...(await blobStorage.createReadUrl(record.file_path, fileName, contentType, 'attachment')),
         fileName,
         contentType,
         isSas: true
@@ -101,7 +100,7 @@ class LockerService {
       throw err;
     }
 
-    if (kind === 'document' && record.storage_provider === 'azure') {
+    if (record.storage_provider === 'azure') {
       const fileName = record.file_name || fileNameOf(record.file_path);
       const contentType = record.content_type || 'application/octet-stream';
       return {
