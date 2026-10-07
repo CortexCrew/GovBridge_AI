@@ -64,15 +64,34 @@ export const certificateApi = {
   listMine: () => apiRequest('/certificates/my-applications'),
   listOfficer: () => apiRequest('/certificates/officer/applications'),
   detail: (id) => apiRequest(`/certificates/my-applications/${id}`),
+  documentAccess: (id, disposition = 'attachment') =>
+    apiRequest(`/certificates/documents/${id}/access?disposition=${disposition}`),
   apply: (body) => apiRequest('/certificates/apply', { method: 'POST', body }),
   review: (id, payload) => apiRequest(`/certificates/${id}/review`, { method: 'PATCH', body: JSON.stringify(payload) }),
 };
 
 export const lockerApi = {
   list: () => apiRequest('/locker/my-locker'),
+  access: (kind, id, disposition = 'attachment') =>
+    apiRequest(`/locker/access/${kind}/${id}?disposition=${disposition}`),
 };
 
 export async function downloadLockerFile(item) {
+  const kind = item.source === 'issued_certificate' ? 'issued' : 'document';
+  if (item.storage_provider === 'azure') {
+    const access = await lockerApi.access(kind, item.item_id);
+    if (!access.success || !access.data?.url) {
+      return { success: false, message: access.message || access.error || 'Unable to download this file.' };
+    }
+    const link = document.createElement('a');
+    link.href = access.data.url;
+    link.rel = 'noopener';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    return { success: true };
+  }
+
   const token = localStorage.getItem('token');
   const origin = new URL(API_BASE, window.location.href).origin;
   try {
@@ -87,6 +106,78 @@ export async function downloadLockerFile(item) {
     const link = document.createElement('a');
     link.href = url;
     link.download = item.file_name;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+    return { success: true };
+  } catch {
+    return { success: false, message: 'The service is unavailable right now. Please try again.' };
+  }
+}
+
+export async function viewLockerFile(item) {
+  const tab = window.open('about:blank', '_blank');
+  if (!tab) return { success: false, message: 'Allow pop-ups to view this document.' };
+
+  const kind = item.source === 'issued_certificate' ? 'issued' : 'document';
+  try {
+    const access = await lockerApi.access(kind, item.item_id, 'inline');
+    if (!access.success) throw new Error(access.message || access.error || 'Unable to open this file.');
+    if (access.data?.url) {
+      tab.location = access.data.url;
+      return { success: true };
+    }
+
+    const token = localStorage.getItem('token');
+    const origin = new URL(API_BASE, window.location.href).origin;
+    const response = await fetch(`${origin}${access.data.local_url}`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (!response.ok) throw new Error('Unable to open this file.');
+    tab.location = URL.createObjectURL(await response.blob());
+    return { success: true };
+  } catch (error) {
+    tab.close();
+    return { success: false, message: error.message || 'Unable to open this file.' };
+  }
+}
+
+export async function viewApplicationDocument(documentId) {
+  const tab = window.open('about:blank', '_blank');
+  if (!tab) return { success: false, message: 'Allow pop-ups to view this document.' };
+  try {
+    const access = await certificateApi.documentAccess(documentId, 'inline');
+    if (!access.success) throw new Error(access.message || access.error || 'Unable to open this file.');
+    if (access.data?.url) {
+      tab.location = access.data.url;
+      return { success: true };
+    }
+    const token = localStorage.getItem('token');
+    const origin = new URL(API_BASE, window.location.href).origin;
+    const response = await fetch(`${origin}${access.data.local_url}`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (!response.ok) throw new Error('Unable to open this file.');
+    tab.location = URL.createObjectURL(await response.blob());
+    return { success: true };
+  } catch (error) {
+    tab.close();
+    return { success: false, message: error.message || 'Unable to open this file.' };
+  }
+}
+
+export async function downloadIssuedCertificate(applicationId, fileName) {
+  const token = localStorage.getItem('token');
+  try {
+    const response = await fetch(`${API_BASE}/certificates/applications/${applicationId}/issued-file`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (!response.ok) return { success: false, message: 'Unable to download this certificate.' };
+    const url = URL.createObjectURL(await response.blob());
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = fileName || 'certificate';
     document.body.appendChild(link);
     link.click();
     link.remove();

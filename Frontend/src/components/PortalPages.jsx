@@ -1,6 +1,6 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { AlertCircle, ArrowLeft, ArrowRight, Download, ExternalLink, FileText, FolderLock, LayoutDashboard, Plus, Search, ShieldCheck, UserRound } from 'lucide-react';
-import { certificateApi, complaintApi, downloadLockerFile, lockerApi, officerApi, getMediaUrl } from '../services/api';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { AlertCircle, ArrowLeft, ArrowRight, Download, ExternalLink, Eye, FileText, FolderLock, LayoutDashboard, Plus, Search, ShieldCheck, UserRound } from 'lucide-react';
+import { certificateApi, complaintApi, downloadIssuedCertificate, downloadLockerFile, lockerApi, officerApi, viewApplicationDocument, viewLockerFile } from '../services/api';
 import { getFieldsForCertificate } from '../config/certificateFields';
 
 const count = (items, value) => items.filter(x => String(x.status || x.complaint_status || '').toUpperCase() === value).length;
@@ -24,7 +24,7 @@ export function CitizenPages({ path, user, complaints, applications, onComplaint
   if (path === '/citizen/complaints/new') return <div className="portal-page"><PortalHeader title="Raise a complaint" subtitle="Tell us about the issue. GovBridge AI will analyze and route it to the appropriate department." icon={AlertCircle} onBack={onBack}/><div className="ai-flow"><b>Complaint</b><i/> <b>AI analysis</b><i/> <b>Category · priority · department</b><i/> <b>Department routing</b></div><section className="form-callout"><h2>Ready to report an issue?</h2><p>You will not be asked to choose a department, officer, category or priority.</p><button className="btn btn-saffron" onClick={onComplaint}>Open complaint form</button></section></div>;
   if (path.startsWith('/citizen/complaints/')) { const complaintId = path.split('/').pop(); const item = complaints.find(x => String(idOf(x)) === complaintId); return <ComplaintDetail item={item} complaintId={complaintId} />; }
   if (path === '/citizen/complaints') return <div className="portal-page"><PortalHeader title="My complaints" subtitle="Track the issues you have reported." icon={AlertCircle}><button className="btn btn-saffron" onClick={onComplaint}><Plus size={16}/> Raise complaint</button></PortalHeader><Filter value={query} onChange={setQuery} placeholder="Search complaints..."/>{matchedComplaints.length ? <ComplaintTable items={matchedComplaints} onSelect={setSelected}/> : <Empty icon={AlertCircle} title="You haven't raised any complaints yet." copy="When you report an issue, its department and status will appear here." action={<button className="btn btn-saffron" onClick={onComplaint}>Raise a complaint</button>}/>} {selected && <ComplaintDetail item={selected} compact onClose={() => setSelected(null)}/>}</div>;
-  if (path === '/citizen/certificates/applications') return <ApplicationsPage items={matchedApps} query={query} setQuery={setQuery}/>;
+  if (path === '/citizen/certificates/applications') return <ApplicationsPage items={matchedApps} query={query} setQuery={setQuery} onNavigate={onNavigate}/>;
   if (path.startsWith('/citizen/certificates/') && path !== '/citizen/certificates/apply') return <CertificateDetail id={path.split('/').pop()} fallback={applications.find(x => String(idOf(x)) === path.split('/').pop())}/>;
   if (path === '/citizen/digital-locker') return <DigitalLockerPage/>;
   if (path === '/citizen/profile') return <div className="portal-page"><PortalHeader title="My profile" subtitle="Manage your personal, contact and address information." icon={UserRound}/><button className="btn btn-secondary" onClick={onProfile}>View and edit profile</button></div>;
@@ -32,6 +32,16 @@ export function CitizenPages({ path, user, complaints, applications, onComplaint
 }
 
 function ListPanel({ title, items, type, empty, onSelect }) { return <section className="list-panel"><h2>{title}</h2>{items.length ? items.map(x => { const content = <><div><b>{type === 'complaint' ? x.title : x.certificate_type}</b><small>#{idOf(x)} · {date(x.created_at || x.application_date)}</small></div><Status value={x.status || x.complaint_status}/></>; return onSelect ? <button className="mini-row mini-row-action" key={idOf(x)} onClick={() => onSelect(x)}>{content}</button> : <div className="mini-row" key={idOf(x)}>{content}</div>; }) : <p>{empty}</p>}</section>; }
+
+function ApplicationsPage({ items, query, setQuery, onNavigate }) {
+  return <div className="portal-page">
+    <PortalHeader title="My certificate applications" subtitle="Review the status of your certificate requests." icon={FileText}/>
+    <Filter value={query} onChange={setQuery} placeholder="Search applications..."/>
+    {items.length
+      ? <ListPanel title="Applications" items={items} type="application" empty="No applications found." onSelect={item => onNavigate(`/citizen/certificates/${idOf(item)}`)}/>
+      : <Empty icon={FileText} title="No certificate applications found." copy="Your submitted applications will appear here."/>}
+  </div>;
+}
 function ComplaintTable({ items, onSelect }) { return <div className="data-table complaint-table"><div className="table-head"><span>ID</span><span>Issue</span><span>Category</span><span>Priority</span><span>Department</span><span>Status</span><span>Created</span></div>{items.map(x => <button className="table-row" onClick={() => onSelect(x)} key={idOf(x)}><span>#{idOf(x)}</span><span><b>{x.title}</b><small>{x.description || 'No description'}</small></span><span>{x.category || 'Processing'}</span><span>{x.priority || 'Processing'}</span><span>{x.department_name || x.department || 'Routing pending'}</span><Status value={x.status || x.complaint_status}/><span>{date(x.created_at)}</span></button>)}</div>; }
 function ComplaintDetail({ item, complaintId: requestedId, compact, onClose }) {
   const [details, setDetails] = useState(item);
@@ -101,15 +111,14 @@ function CertificateDetail({ id, fallback }) {
                 <p style={{ marginTop: '0.35rem', color: '#2e5b32' }}>The verifying officer has approved your application and issued your official certificate.</p>
                 {item.issued_certificate ? (
                   <div style={{ marginTop: '0.75rem' }}>
-                    <a
-                      href={getMediaUrl(item.issued_certificate.download_url || item.issued_certificate.file_url)}
-                      target="_blank"
-                      rel="noopener noreferrer"
+                    <button
+                      type="button"
+                      onClick={() => downloadIssuedCertificate(item.application_id, item.issued_certificate.file_name)}
                       className="btn btn-saffron"
-                      style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', textDecoration: 'none' }}
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}
                     >
                       <Download size={16} /> Download Approved Certificate
-                    </a>
+                    </button>
                   </div>
                 ) : (
                   <p className="api-note" style={{ marginTop: '0.5rem' }}>Your certificate is also available in your <a href="/citizen/digital-locker" className="text-link">Digital Locker</a>.</p>
@@ -152,7 +161,7 @@ function OfficerComplaintDetail({ id, onBack }) {
   const [status, setStatus] = useState('IN_PROGRESS');
   const [remarks, setRemarks] = useState('');
   const [message, setMessage] = useState('');
-  const load = () => complaintApi.officerDetail(id).then(response => {
+  const load = useCallback(() => complaintApi.officerDetail(id).then(response => {
     if (!response.success) {
       setMessage(response.message || 'Unable to load complaint.');
       return;
@@ -160,14 +169,14 @@ function OfficerComplaintDetail({ id, onBack }) {
     setData(response.data);
     setStatus(String(response.data.complaint?.status || 'PENDING').toUpperCase().replaceAll(' ', '_'));
     setOfficerId(response.data.assignment?.officer_id ? String(response.data.assignment.officer_id) : '');
-  });
+  }), [id]);
   useEffect(() => {
     load();
     officerApi.departmentOfficers().then(response => {
       if (response.success) setDepartmentOfficers(response.data || []);
       else setOfficerLoadError(response.message || 'Unable to load department officers.');
     });
-  }, [id]);
+  }, [id, load]);
   if (!data) return <div className="portal-page"><PortalHeader title="Complaint details" subtitle={message || 'Loading complaint...'} icon={AlertCircle}/></div>;
   const complaint = data.complaint;
   const saveAssignment = async () => { const response = await complaintApi.assign(id, Number(officerId)); setMessage(response.success ? 'Complaint assigned successfully.' : response.message || 'Unable to assign complaint.'); if (response.success) load(); };
@@ -192,6 +201,7 @@ function DigitalLockerPage() {
   }, []);
 
   const download = async item => { const result = await downloadLockerFile(item); setMessage(result.success ? '' : result.message); };
+  const view = async item => { const result = await viewLockerFile(item); setMessage(result.success ? '' : result.message); };
   const visible = (items || []).filter(item => !source || sourceLabel(item.source) === source);
 
   return <div className="portal-page">
@@ -201,13 +211,16 @@ function DigitalLockerPage() {
       : <>
         <div className="complaint-filters"><SelectFilter label="Type" value={source} onChange={setSource} options={['Issued certificate', 'Uploaded document']}/></div>
         {message && <p className="api-note">{message}</p>}
-        {visible.length ? <div className="data-table">
-          <div className="table-head"><span>Certificate</span><span>Source</span><span>Added</span><span>File</span></div>
+        {visible.length ? <div className="data-table locker-table">
+          <div className="table-head"><span>File name</span><span>File type</span><span>Uploaded</span><span>Actions</span></div>
           {visible.map(item => <div className="table-row" key={`${item.source}-${item.download_url}`}>
-            <span><b>{item.certificate_type}</b><small>{item.file_name} · Application #{item.application_id}</small></span>
-            <span><span className={`status ${item.source === 'issued_certificate' ? 'status-approved' : ''}`}>{sourceLabel(item.source)}</span></span>
+            <span><b>{item.file_name}</b><small>{item.certificate_type} · Application #{item.application_id}</small></span>
+            <span>{item.content_type || 'Document'}</span>
             <span>{date(item.uploaded_at)}</span>
-            <button className="text-link" onClick={() => download(item)}>Download</button>
+            <span className="locker-actions">
+              {(item.content_type === 'application/pdf' || item.file_name?.toLowerCase().endsWith('.pdf')) && <button className="text-link" onClick={() => view(item)} title="View PDF"><Eye size={15}/> View</button>}
+              <button className="text-link" onClick={() => download(item)} title="Download document"><Download size={15}/> Download</button>
+            </span>
           </div>)}
         </div> : <Empty icon={FolderLock} title="No matching files" copy="Try changing the filter."/>}
       </>}
@@ -238,7 +251,7 @@ function SupportingDocumentsList({ documents }) {
         <span>Action</span>
       </div>
       {documents.map((doc, idx) => {
-        const fileUrl = getMediaUrl(doc.file_url || doc.download_url || (doc.file_name ? `/uploads/${doc.file_name}` : ''));
+        const fileUrl = doc.document_id;
         const docLabel = doc.document_type || doc.file_name || `Supporting Document #${idx + 1}`;
         return (
           <div className="table-row" key={doc.document_id || idx} style={{ alignItems: 'center' }}>
@@ -247,10 +260,9 @@ function SupportingDocumentsList({ documents }) {
             <span>{date(doc.uploaded_at)}</span>
             <span>
               {fileUrl ? (
-                <a
-                  href={fileUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
+                <button
+                  type="button"
+                  onClick={() => viewApplicationDocument(doc.document_id)}
                   className="btn btn-secondary"
                   style={{
                     padding: '0.35rem 0.75rem',
@@ -262,7 +274,7 @@ function SupportingDocumentsList({ documents }) {
                   }}
                 >
                   <ExternalLink size={14} /> View / Open
-                </a>
+                </button>
               ) : (
                 <span className="api-note">File not available</span>
               )}
@@ -345,15 +357,14 @@ function OfficerCertificatesPage({ applications, onReview }) {
           <p className="api-note" style={{ fontSize: '0.9rem', color: '#103f67' }}>This application has been marked as <b>{current.status}</b>.</p>
           {current.issued_certificate && (
             <div style={{ marginTop: '0.75rem' }}>
-              <a
-                href={getMediaUrl(current.issued_certificate.download_url || current.issued_certificate.file_url)}
-                target="_blank"
-                rel="noopener noreferrer"
+              <button
+                type="button"
+                onClick={() => downloadIssuedCertificate(current.application_id, current.issued_certificate.file_name)}
                 className="btn btn-secondary"
-                style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', textDecoration: 'none' }}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
               >
                 <Download size={15}/> Download Issued Certificate ({current.issued_certificate.file_name})
-              </a>
+              </button>
             </div>
           )}
         </article>

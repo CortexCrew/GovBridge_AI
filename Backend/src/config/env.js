@@ -26,6 +26,8 @@ module.exports = {
   DB_SSL: true,
   JWT_SECRET: process.env.JWT_SECRET || 'supersecretjwtkey',
   AI_SERVICE_URL: process.env.AI_SERVICE_URL || 'http://localhost:8000',
+  AZURE_STORAGE_CONNECTION_STRING: process.env.AZURE_STORAGE_CONNECTION_STRING || '',
+  AZURE_STORAGE_CONTAINER: process.env.AZURE_STORAGE_CONTAINER || 'documents',
   OTP_EXPIRATION_MINUTES: parseInt(process.env.OTP_EXPIRATION_MINUTES || '5', 10),
   OTP_RESEND_COOLDOWN_SECONDS: parseInt(process.env.OTP_RESEND_COOLDOWN_SECONDS || '60', 10),
 

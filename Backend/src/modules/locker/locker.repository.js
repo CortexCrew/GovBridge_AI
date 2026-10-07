@@ -65,6 +65,9 @@ class LockerRepository {
         dl.application_id,
         ca.certificate_type,
         dl.file_path,
+        NULL::varchar              AS file_name,
+        NULL::varchar              AS content_type,
+        'local'::varchar           AS storage_provider,
         NULL::varchar              AS document_type,
         dl.uploaded_at
       FROM digital_locker dl
@@ -77,6 +80,9 @@ class LockerRepository {
         d.application_id,
         ca.certificate_type,
         d.file_path,
+        d.file_name,
+        d.content_type,
+        d.storage_provider,
         d.document_type,
         d.uploaded_at
       FROM documents d
@@ -98,7 +104,7 @@ class LockerRepository {
 
   async findUploadedDocument(userId, documentId) {
     const result = await db.query(
-      'SELECT file_path FROM documents WHERE user_id = $1 AND document_id = $2',
+      'SELECT file_path, file_name, content_type, storage_provider FROM documents WHERE user_id = $1 AND document_id = $2',
       [userId, documentId]
     );
     return result.rows[0] || null;

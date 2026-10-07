@@ -31,6 +31,10 @@ router.get(
   controller.getApplicationDetails
 );
 
+router.get('/documents/:documentId/access', auth, controller.getSupportingDocumentAccess);
+router.get('/documents/:documentId/file', auth, controller.getSupportingDocumentFile);
+router.get('/applications/:applicationId/issued-file', auth, controller.getIssuedCertificateFile);
+
 // ─── Officer Routes ───────────────────────────────────────────────────────────
 
 // GET /api/certificates/officer/applications
