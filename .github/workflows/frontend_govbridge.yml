@@ -33,11 +33,19 @@ jobs:
         run: npm run build
         working-directory: Frontend
 
-      - name: Upload artifact for deployment job
+      - name: Stage frontend Node app
+        run: |
+          mkdir -p deploy/dist
+          cp server.js package.json package-lock.json deploy/
+          cp -R dist/. deploy/dist/
+          npm ci --omit=dev --prefix deploy
+        working-directory: Frontend
+
+      - name: Upload frontend Node app artifact
         uses: actions/upload-artifact@v4
         with:
-          name: frontend-dist
-          path: Frontend/dist/
+          name: frontend-node-app
+          path: Frontend/deploy/
 
   deploy:
     runs-on: ubuntu-latest
@@ -50,8 +58,8 @@ jobs:
       - name: Download artifact from build job
         uses: actions/download-artifact@v4
         with:
-          name: frontend-dist
-          path: dist
+          name: frontend-node-app
+          path: deploy
 
       - name: Login to Azure
         uses: azure/login@v2
@@ -66,5 +74,6 @@ jobs:
         with:
           app-name: 'govbridge'
           slot-name: 'Production'
-          package: dist/
+          package: deploy/
+          startup-command: 'npm start'
           
