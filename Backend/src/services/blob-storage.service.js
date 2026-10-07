@@ -33,6 +33,7 @@ async function uploadFile(file, blobName) {
     });
     return blobName;
   } catch (cause) {
+    if (cause.statusCode) throw cause;
     const error = new Error('Unable to upload document to Azure Blob Storage');
     error.statusCode = 502;
     error.cause = cause;
@@ -65,7 +66,7 @@ async function createReadUrl(blobName, fileName, contentType, disposition = 'att
     });
     return { url, expires_at: expiresOn.toISOString() };
   } catch (cause) {
-    if (cause.statusCode === 404) throw cause;
+    if (cause.statusCode) throw cause;
     const error = new Error('Unable to generate secure document access');
     error.statusCode = 502;
     error.cause = cause;

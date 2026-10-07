@@ -112,7 +112,7 @@ class LockerService {
     }
 
     const { absolutePath, fileName } = await this.getDownload(userId, kind, id);
-    return { url: null, local_url: `/api/locker/download/${kind}/${id}`, file_name: fileName, absolutePath };
+    return { url: null, local_url: `/api/locker/download/${kind}/${id}`, file_name: fileName };
   }
 }
 

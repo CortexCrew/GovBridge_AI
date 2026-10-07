@@ -15,16 +15,27 @@ const ALLOWED_REVIEW_STATUSES = ['Approved', 'Rejected'];
  * Requires: certificate_type (one of 5 allowed types).
  */
 function validateApplication(req, res, next) {
+  const discardUploads = () => {
+    for (const file of req.files || []) {
+      try {
+        if (file.path && fs.existsSync(file.path)) fs.unlinkSync(file.path);
+      } catch (error) {
+        console.warn(`Rejected upload cleanup failed for ${file.path}:`, error.message);
+      }
+    }
+  };
   const { certificate_type, officer_id } = req.body;
 
   if (Object.prototype.hasOwnProperty.call(req.body, 'officer_id')) {
+    discardUploads();
     return res.status(400).json({
       success: false,
       message: 'officer_id is not allowed in citizen application requests. The backend determines eligible officers automatically.'
     });
   }
 
-  if (!certificate_type || certificate_type.trim() === '') {
+  if (typeof certificate_type !== 'string' || certificate_type.trim() === '') {
+    discardUploads();
     return res.status(400).json({
       success: false,
       message: 'certificate_type is required'
@@ -32,6 +43,7 @@ function validateApplication(req, res, next) {
   }
 
   if (!ALLOWED_CERTIFICATE_TYPES.includes(certificate_type.trim())) {
+    discardUploads();
     return res.status(400).json({
       success: false,
       message: `Invalid certificate_type. Must be one of: ${ALLOWED_CERTIFICATE_TYPES.join(', ')}`
@@ -44,6 +56,7 @@ function validateApplication(req, res, next) {
       try {
         parsed = JSON.parse(parsed);
       } catch (e) {
+        discardUploads();
         return res.status(400).json({
           success: false,
           message: 'application_data must be valid JSON'
@@ -52,6 +65,7 @@ function validateApplication(req, res, next) {
     }
 
     if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      discardUploads();
       return res.status(400).json({
         success: false,
         message: 'application_data must be a JSON object'
