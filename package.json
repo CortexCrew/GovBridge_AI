@@ -1,5 +1,7 @@
 {
   "dependencies": {
+    "@azure/storage-blob": "^12.34.0",
+    "multer": "^2.4.0",
     "twilio": "^6.1.0"
   }
 }

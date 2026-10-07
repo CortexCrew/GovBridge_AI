@@ -34,8 +34,27 @@ class LockerController {
         });
       }
 
-      const { absolutePath, fileName } = await service.getDownload(req.user.user_id, kind, id);
+      const result = await service.getDownload(req.user.user_id, kind, id);
+      if (result.isSas) return res.redirect(302, result.url);
+      const { absolutePath, fileName } = result;
       return res.download(absolutePath, fileName);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async access(req, res, next) {
+    try {
+      const { kind } = req.params;
+      const id = parseInt(req.params.id, 10);
+      const disposition = req.query.disposition === 'inline' ? 'inline' : 'attachment';
+
+      if (!['issued', 'document'].includes(kind) || !Number.isInteger(id) || id < 1) {
+        return res.status(400).json({ success: false, message: 'Invalid document request' });
+      }
+
+      const access = await service.getDocumentAccess(req.user.user_id, kind, id, disposition);
+      return res.status(200).json({ success: true, data: access });
     } catch (error) {
       next(error);
     }

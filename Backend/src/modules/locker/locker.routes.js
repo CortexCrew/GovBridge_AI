@@ -14,6 +14,13 @@ router.get(
 
 // GET /api/locker/download/:kind/:id  (kind: issued | document)
 router.get(
+  '/access/:kind/:id',
+  auth,
+  requireRole('CITIZEN'),
+  controller.access
+);
+
+router.get(
   '/download/:kind/:id',
   auth,
   requireRole('CITIZEN'),

@@ -1,6 +1,9 @@
 const fs = require('fs');
+const path = require('path');
+const crypto = require('crypto');
 const repository = require('./certificate.repository');
 const officerRepository = require('../officers/officer.repository');
+const blobStorage = require('../../services/blob-storage.service');
 const { ALLOWED_CERTIFICATE_TYPES } = require('./certificate.validation');
 
 class CertificateService {
@@ -13,7 +16,7 @@ class CertificateService {
 
   /**
    * Submit a new certificate application with supporting documents.
-   * Cleans up uploaded files from disk if DB insertion fails.
+  * Uploads supporting files to Azure and cleans up staged files on completion.
    *
    * @param {number} userId - From JWT (req.user.user_id)
    * @param {string} certificateType
@@ -36,26 +39,43 @@ class CertificateService {
     let application;
     try {
       application = await repository.createApplication(userId, certificateType, applicationData);
-    } catch (dbErr) {
+    } catch (error) {
       this._cleanUpFiles(files);
-      throw dbErr;
+      throw error;
     }
-
     const savedDocuments = [];
+    const uploadedBlobs = [];
     try {
       for (const file of files) {
         const docType = file.originalname || file.fieldname || 'Supporting Document';
+        const extension = path.extname(file.originalname || '').toLowerCase();
+        const blobName = `${userId}/${crypto.randomUUID()}${extension}`;
+        uploadedBlobs.push(blobName);
+        await blobStorage.uploadFile(file, blobName);
         const doc = await repository.saveDocument(
           application.application_id,
           userId,
-          file.path,
-          docType
+          blobName,
+          docType,
+          {
+            file_name: file.originalname,
+            content_type: file.mimetype,
+            file_size: file.size,
+            storage_provider: 'azure'
+          }
         );
         savedDocuments.push(doc);
       }
-    } catch (docErr) {
+    } catch (error) {
+      await Promise.all(uploadedBlobs.map(blobStorage.deleteFile));
+      try {
+        await repository.deleteApplication(application.application_id, userId);
+      } catch (cleanupError) {
+        console.warn('Certificate application cleanup failed:', cleanupError.message);
+      }
+      throw error;
+    } finally {
       this._cleanUpFiles(files);
-      throw docErr;
     }
 
     return { ...application, documents: savedDocuments };
@@ -128,6 +148,54 @@ class CertificateService {
 
     const documents = await repository.getDocumentsByApplicationId(applicationId);
     return { ...application, documents };
+  }
+
+  async getSupportingDocument(documentId, user) {
+    const document = await repository.getDocumentById(documentId);
+    if (!document) {
+      const err = new Error('Document not found');
+      err.statusCode = 404;
+      throw err;
+    }
+
+    const application = await this.getApplicationDetails(document.application_id, user);
+    if (document.user_id !== application.user_id) {
+      const err = new Error('Access denied. You do not own this document.');
+      err.statusCode = 403;
+      throw err;
+    }
+    return document;
+  }
+
+  async getSupportingDocumentAccess(documentId, user, disposition = 'attachment') {
+    const document = await this.getSupportingDocument(documentId, user);
+    const fileName = document.file_name || path.basename(String(document.file_path).replace(/\\/g, '/'));
+    const contentType = document.content_type || 'application/octet-stream';
+
+    if (document.storage_provider === 'azure') {
+      return {
+        ...(await blobStorage.createReadUrl(document.file_path, fileName, contentType, disposition)),
+        file_name: fileName,
+        content_type: contentType
+      };
+    }
+
+    return {
+      local_url: `/api/certificates/documents/${document.document_id}/file`,
+      file_name: fileName,
+      content_type: contentType
+    };
+  }
+
+  async getIssuedCertificateFile(applicationId, user) {
+    await this.getApplicationDetails(applicationId, user);
+    const certificate = await repository.getIssuedCertificate(applicationId);
+    if (!certificate) {
+      const err = new Error('Issued certificate not found');
+      err.statusCode = 404;
+      throw err;
+    }
+    return certificate;
   }
 
   /**
