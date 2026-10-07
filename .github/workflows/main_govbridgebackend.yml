@@ -1,7 +1,7 @@
 # Docs for the Azure Web Apps Deploy action: https://github.com/Azure/webapps-deploy
 # More GitHub Actions for Azure: https://github.com/Azure/actions
 
-name: Build and deploy Frontend to Azure Web App - govbridgebackend
+name: Build and deploy Frontend to Azure Web App - govbridge
 
 on:
   push:
@@ -45,6 +45,6 @@ jobs:
         id: deploy-to-webapp
         uses: azure/webapps-deploy@v3
         with:
-          app-name: 'govbridgebackend'
+          app-name: 'govbridge'
           slot-name: 'Production'
           package: Frontend/dist/
