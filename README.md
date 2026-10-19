@@ -175,6 +175,8 @@ erDiagram
    }
 ```
 
+![Hand-drawn ER diagram](Screenshot%202026-10-19%20213705.jpg)
+
 ### UML class diagram
 
 The class view presents the main domain entities and their associations; it is a documentation view of the database-backed model, not a claim that each entity is implemented as a JavaScript class.
