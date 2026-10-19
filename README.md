@@ -101,7 +101,6 @@ erDiagram
       int citizen_id PK
       int user_id FK, UK
       varchar phone
-
       text address
       varchar state
       varchar pincode
@@ -111,8 +110,8 @@ erDiagram
       varchar department_name UK
       text description
       boolean is_active
-
    }
+   OFFICERS {
       int officer_id PK
       varchar name
       varchar email UK
@@ -120,8 +119,8 @@ erDiagram
       text_array certificate_types
       varchar role
       boolean is_active
-
    }
+   CERTIFICATE_APPLICATIONS {
       int application_id PK
       int user_id FK
       varchar certificate_type
@@ -132,7 +131,6 @@ erDiagram
    }
    DOCUMENTS {
       int document_id PK
-
       int application_id FK
       varchar file_path
       varchar document_type
@@ -141,7 +139,6 @@ erDiagram
    }
    DIGITAL_LOCKER {
       int user_id PK, FK
-
       int application_id PK, FK
       varchar file_path
       varchar storage_provider
