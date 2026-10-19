@@ -8,15 +8,15 @@ Team member names, student IDs, and individual contributions were not included i
 
 | Team member | Student / ID | Contribution |
 | --- | --- | --- |
-| To be supplied by the project team | To be supplied | To be supplied |
 
+| To be supplied by the project team | To be supplied | To be supplied |
 ## Project Overview
 
 GovBridge AI is a web application for citizen-facing government services. Citizens can manage a profile, apply for supported certificates, upload supporting documents, and submit complaints. An AI service classifies complaint text, assigns a department and priority, and generates a short summary. Officers authenticate separately and view work scoped to their department and the certificate types they handle.
 
 ### Introduction and problem statement
 
-Government service requests commonly span separate forms, departments, and status updates. Citizens need a consistent place to submit requests and follow their progress, while departments need structured records and role-limited work queues. GovBridge AI demonstrates a unified workflow backed by a relational database, with AI-assisted complaint triage to reduce manual categorization. AI output is stored as application data and should be reviewed as part of operational decision-making.
+
 
 ### Project objectives
 
@@ -25,8 +25,8 @@ Government service requests commonly span separate forms, departments, and statu
 - Restrict officer views using authenticated role, department, and certificate-type data.
 - Use AI to classify complaints and map the returned department name to a database department ID.
 
-### Current scope
 
+### Current scope
 The repository contains authentication and profiles, certificate applications and reviews, document storage, a digital locker, complaints, complaint assignment and history, department/officer workflows, and an AI complaint service. Email, OTP, cloud storage, and AI provider integrations require corresponding credentials and configuration. Officer accounts are provisioned administratively; the application does not provide public officer registration.
 
 ## System Requirements
@@ -99,10 +99,10 @@ erDiagram
    }
    CITIZENS {
       int citizen_id PK
-      int user_id FK_UK
+      int user_id FK, UK
       varchar phone
+
       text address
-      varchar city
       varchar state
       varchar pincode
    }
@@ -111,8 +111,8 @@ erDiagram
       varchar department_name UK
       text description
       boolean is_active
+
    }
-   OFFICERS {
       int officer_id PK
       varchar name
       varchar email UK
@@ -120,8 +120,8 @@ erDiagram
       text_array certificate_types
       varchar role
       boolean is_active
+
    }
-   CERTIFICATE_APPLICATIONS {
       int application_id PK
       int user_id FK
       varchar certificate_type
@@ -132,17 +132,17 @@ erDiagram
    }
    DOCUMENTS {
       int document_id PK
+
       int application_id FK
-      int user_id FK
       varchar file_path
       varchar document_type
       varchar storage_provider
       timestamp uploaded_at
    }
    DIGITAL_LOCKER {
-      int user_id PK_FK
-      int application_id PK_FK
-      int uploaded_by FK
+      int user_id PK, FK
+
+      int application_id PK, FK
       varchar file_path
       varchar storage_provider
       timestamp uploaded_at
