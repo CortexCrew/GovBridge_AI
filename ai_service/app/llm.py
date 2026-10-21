@@ -23,7 +23,7 @@ if not api_key:
     raise RuntimeError('GEMINI_API_KEY is required to run the AI service')
 
 genai.configure(api_key=api_key)
-model = genai.GenerativeModel('gemini-2.5-flash')
+model = genai.GenerativeModel('gemini-3.8-flash')
 
 
 def parse_ai_text(raw_text):
