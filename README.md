@@ -4,12 +4,8 @@
 
 ## Team
 
-Team member names, student IDs, and individual contributions were not included in the repository materials. Add the verified team details before submission; do not leave placeholder identities in the final project report.
+This repository snapshot does not include a verified team roster or individual contribution log. Add the confirmed team member names, student IDs, and responsibilities in the final submission package before distribution or publication.
 
-| Team member | Student / ID | Contribution |
-| --- | --- | --- |
-
-| To be supplied by the project team | To be supplied | To be supplied |
 ## Project Overview
 
 GovBridge AI is a web application for citizen-facing government services. Citizens can manage a profile, apply for supported certificates, upload supporting documents, and submit complaints. An AI service classifies complaint text, assigns a department and priority, and generates a short summary. Officers authenticate separately and view work scoped to their department and the certificate types they handle.
